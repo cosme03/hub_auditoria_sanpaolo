@@ -41,25 +41,30 @@ window.salvarNovaSenha = async function () {
 
     if (!senhaAtual) return showToast("Digite sua senha atual", "error");
     if (!novaSenha) return showToast("Digite a nova senha", "error");
-    if (novaSenha.length < 4) return showToast("A nova senha deve ter no mínimo 4 caracteres", "error");
+    // O minimo do Firebase Auth e 6; validar aqui evita ida perdida ao servidor.
+    if (novaSenha.length < 6) return showToast("A nova senha deve ter no mínimo 6 caracteres", "error");
     if (novaSenha !== confirmar) return showToast("As senhas não conferem", "error");
 
+    // A senha vive no Firebase Auth, em hash, e nunca no Firestore.
+    // updatePassword exige login recente: por isso o reauthenticate antes.
     try {
-        const q = query(collection(db, "users"), where("user", "==", window.currentUser));
-        const querySnapshot = await getDocs(q);
+        const user = window.auth.currentUser;
+        if (!user) return showToast("Sessão expirada. Entre novamente.", "error");
 
-        if (querySnapshot.empty) return showToast("Usuário não encontrado", "error");
+        const cred = firebase.auth.EmailAuthProvider.credential(user.email, senhaAtual);
+        await user.reauthenticateWithCredential(cred);
+        await user.updatePassword(novaSenha);
 
-        const docRef = querySnapshot.docs[0];
-        const userData = docRef.data();
-
-        if (userData.pass !== senhaAtual) return showToast("Senha atual incorreta", "error");
-
-        await updateDoc(doc(db, "users", docRef.id), { pass: novaSenha });
         showToast("Senha alterada com sucesso!");
         window.fecharModalPerfil();
     } catch (e) {
         console.error(e);
-        showToast("Erro ao alterar senha", "error");
+        const codigo = e && e.code;
+        const msg = (codigo === 'auth/wrong-password' || codigo === 'auth/invalid-credential')
+            ? "Senha atual incorreta"
+            : (codigo === 'auth/weak-password' ? "A nova senha é muito fraca"
+            : (codigo === 'auth/too-many-requests' ? "Muitas tentativas. Aguarde alguns minutos."
+            : "Erro ao alterar senha"));
+        showToast(msg, "error");
     }
 }

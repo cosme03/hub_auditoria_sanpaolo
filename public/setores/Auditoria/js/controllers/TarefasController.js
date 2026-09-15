@@ -795,11 +795,25 @@ window.carregarUsuariosSistemaAudi = async function() {
     try {
         var snap = await getDocs(collection(db, "users"));
         var users = [];
-        snap.forEach(d => users.push(d.data().user));
+        // O campo passou a ser displayName (users/{uid}); contas desativadas
+        // nao entram na lista de responsaveis.
+        snap.forEach(function (d) {
+            var p = d.data();
+            if (p && p.displayName && p.ativo !== false) users.push(p.displayName);
+        });
         users.sort();
-        select.innerHTML = '<option value="">Selecione um usuário...</option>' + 
-            users.map(u => `<option value="${u}">${u}</option>`).join('');
-    } catch(e) { console.error(e); }
+        select.innerHTML = '<option value="">Selecione um usuário...</option>' +
+            users.map(u => `<option value="${window.escapeHtml(u)}">${window.escapeHtml(u)}</option>`).join('');
+    } catch (e) {
+        console.error(e);
+        // Listar a colecao users inteira e permitido so ao superadmin
+        // (firestore.rules: allow list: if isSuper()). Sem isso a lista viria
+        // vazia sem explicacao nenhuma para quem esta usando.
+        var semPermissao = e && e.code === 'permission-denied';
+        select.innerHTML = '<option value="">' + (semPermissao
+            ? 'Apenas o administrador pode adicionar membros'
+            : 'Erro ao carregar usuários') + '</option>';
+    }
 }
 
 window.adicionarAudiMembro = async function () {

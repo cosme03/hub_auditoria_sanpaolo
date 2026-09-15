@@ -29,14 +29,20 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="js/tailwind-config.js"></script>
     
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap">
     <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/sanpaolo-design.css">
 </head>
 
 <body>
 
-    <div id="login-container" class="min-h-screen bg-gray-100 flex items-center justify-center p-4" style="background-image: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);">
+    <div id="login-container" class="min-h-screen bg-background flex items-center justify-center p-4" style="background-image: linear-gradient(135deg, var(--sp-ninho) 0%, #FBF8F3 100%);">
         <div class="bg-surface p-10 rounded-xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1)] w-full max-w-md border border-border">
-            <h2 id="authTitle" class="text-2xl font-bold text-center mb-6 text-mainText m-0">Acesso ao Sistema</h2>
+            <div class="flex flex-col items-center mb-6">
+                <img src="assets/logo_sanpaolo_red.png" alt="San Paolo Gelato e Café" class="h-16 w-auto mb-4">
+                <h2 id="authTitle" class="brand-title text-2xl font-bold text-center text-mainText m-0">HUB AUDITORIA</h2>
+                <p class="brand-subtitle text-xs tracking-widest text-mutedText mt-1">SAN PAOLO GELATO E CAFÉ</p>
+            </div>
             
             <div class="flex flex-col mb-4">
                 <label class="mb-2 font-medium text-sm text-mainText" for="userInput">E-mail corporativo</label>
@@ -62,9 +68,10 @@
         </div>
     </div>
 
-    <div id="hub-container" class="hidden min-h-screen bg-gray-50 p-10 max-w-7xl mx-auto">
+    <div id="hub-container" class="hidden min-h-screen bg-background p-10 max-w-7xl mx-auto">
         <div class="text-center mb-10">
-            <h1 class="text-5xl font-bold text-mainText mb-2">Portal Empresarial San Paolo</h1>
+            <img src="assets/logo_sanpaolo_red.png" alt="San Paolo Gelato e Café" class="h-20 w-auto mx-auto mb-5">
+            <h1 class="text-5xl font-bold text-mainText mb-2" style="font-family: var(--ff-display);">Portal Empresarial San Paolo</h1>
             <p class="text-lg text-mutedText">Selecione o setor que deseja acessar no momento.</p>
         </div>
 
@@ -95,13 +102,19 @@
                 </button>
             </div>
             <div class="p-6 pb-2 border-b border-border bg-gray-50 dark:bg-black/20">
-                <div class="flex flex-col sm:flex-row gap-3 items-end mb-4">
-                    <input type="text" id="novoUsuarioAdmin" placeholder="Novo Usuário" class="flex-1 w-full p-2.5 border border-border rounded-md bg-surface text-mainText focus:outline-none focus:ring-2 focus:ring-brandOrange focus:border-transparent transition-all">
-                    <input type="password" id="novaSenhaAdmin" placeholder="Senha" class="flex-1 w-full p-2.5 border border-border rounded-md bg-surface text-mainText focus:outline-none focus:ring-2 focus:ring-brandOrange focus:border-transparent transition-all">
+                <div class="flex flex-col sm:flex-row gap-3 items-end mb-2">
+                    <input type="email" id="novoUsuarioAdmin" autocomplete="off" placeholder="E-mail corporativo" class="flex-1 w-full p-2.5 border border-border rounded-md bg-surface text-mainText focus:outline-none focus:ring-2 focus:ring-brandOrange focus:border-transparent transition-all">
+                    <input type="text" id="novoNomeAdmin" autocomplete="off" placeholder="Nome de exibição" class="flex-1 w-full p-2.5 border border-border rounded-md bg-surface text-mainText focus:outline-none focus:ring-2 focus:ring-brandOrange focus:border-transparent transition-all">
+                    <input type="password" id="novaSenhaAdmin" autocomplete="new-password" placeholder="Senha inicial (mín. 6)" class="flex-1 w-full p-2.5 border border-border rounded-md bg-surface text-mainText focus:outline-none focus:ring-2 focus:ring-brandOrange focus:border-transparent transition-all">
                     <button class="btn-primary" onclick="window.criarUsuarioAdmin()">
                         <i class="ph ph-plus"></i> Adicionar
                     </button>
                 </div>
+                <p class="text-xs text-mutedText mb-4">
+                    O <strong>nome de exibição</strong> precisa ser idêntico ao nome usado nos registros de auditoria —
+                    é por ele que o sistema liga a pessoa ao histórico dela. A senha inicial só serve para o primeiro
+                    acesso: quem entra troca em "Minha Conta", e você nunca mais consegue vê-la.
+                </p>
                 <input type="text" id="buscaUsuarioAdmin" placeholder="Buscar usuário..." class="w-full p-2.5 border border-border rounded-md bg-surface text-mainText focus:outline-none focus:ring-2 focus:ring-brandOrange focus:border-transparent transition-all"
                     oninput="window.renderAdminUsersList()">
             </div>

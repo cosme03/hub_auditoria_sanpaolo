@@ -1,0 +1,198 @@
+/* css/styles.css - Base Variables and Tailwind Fixes */
+:root {
+    /* Brand Colors */
+    --sp-red: #DA0D17;
+    --sp-ninho: #E8E1D0;
+    --sp-laranja: #DA5513;
+    --sp-pistache: #4F7039;
+    --sp-cafe: #56331B;
+    --sp-morango: #F29C94;
+    --sp-aoleite: #265D7C;
+
+    --primary: var(--sp-red);
+    --secondary: var(--sp-aoleite);
+    --accent: var(--sp-laranja);
+    --danger: var(--sp-red);
+    --success: var(--sp-pistache);
+    --warning: var(--sp-morango);
+    --bg-color: var(--sp-ninho);
+    --surface: #ffffff;
+    --text-main: var(--sp-cafe);
+    --text-muted: #786D68;
+    --border: #D1C8B4;
+
+    /* RGB variants for transparency */
+    --primary-rgb: 218, 13, 23;
+    --secondary-rgb: 38, 93, 124;
+    --success-rgb: 79, 112, 57;
+    --warning-rgb: 218, 85, 19;
+
+    /* Design Tokens - San Paolo Premium */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
+    
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+body.dark-mode {
+    --primary: var(--sp-red);
+    --secondary: var(--sp-morango);
+    --accent: var(--sp-laranja);
+    --bg-color: #1a0f07;
+    --surface: #362011;
+    --text-main: #f5f0e6;
+    --text-muted: #d4bda8;
+    --border: #4a2815;
+}
+
+/* Base input focus styles */
+input:focus, select:focus, textarea:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+/* Dark Mode Input Contrast Fix */
+body.dark-mode input:not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]), 
+body.dark-mode select, 
+body.dark-mode textarea {
+    background-color: var(--bg-color) !important;
+    color: var(--text-main) !important;
+    border-color: var(--border) !important;
+}
+
+body.dark-mode input::placeholder,
+body.dark-mode textarea::placeholder {
+    color: var(--text-muted) !important;
+    opacity: 0.7;
+}
+
+/* Global Transitions */
+body {
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Global Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
+/* Active nav item styling (used by switchView JS) */
+.active-nav,
+[id^="nav-"].active {
+    color: var(--primary) !important;
+    font-weight: 600 !important;
+    background: rgba(218, 13, 23, 0.08) !important;
+    border-left-color: var(--primary) !important;
+}
+
+body.dark-mode .active-nav,
+body.dark-mode [id^="nav-"].active {
+    color: #fff !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Desktop Sidebar Collapse */
+@media (min-width: 768px) {
+    body.sidebar-collapsed #sidebar-wrapper {
+        width: 0;
+        margin-left: -1px;
+    }
+    
+    body.sidebar-collapsed #appSidebar {
+        width: 0;
+        min-width: 0;
+        border-right-width: 0;
+        overflow: hidden;
+    }
+}
+
+/* Sidebar Toggle Icon Rotation */
+.sidebar-icon-toggle {
+    transition: transform 0.3s ease;
+}
+body.sidebar-collapsed .sidebar-icon-toggle {
+    transform: rotate(180deg);
+}
+/* Global Animations */
+@keyframes fadeIn { 
+    from { opacity: 0; transform: translateY(10px); } 
+    to { opacity: 1; transform: translateY(0); } 
+}
+.animate-fadeIn { animation: fadeIn 0.4s ease-out forwards; }
+
+/* Custom Scrollbar for sidebar and modals */
+.custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+
+/* --- Padronização de Componentes (Design Tokens) --- */
+.btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    border-radius: var(--radius-md);
+    background-color: var(--primary);
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 0.875rem;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.3s ease;
+    border: 1px solid var(--primary);
+    cursor: pointer;
+}
+.btn-primary:hover {
+    box-shadow: var(--shadow-md);
+    filter: brightness(1.1);
+    transform: translateY(-2px);
+}
+.btn-primary:active {
+    transform: scale(0.95);
+}
+
+.btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    border-radius: var(--radius-md);
+    background-color: transparent;
+    color: var(--text-main);
+    font-weight: 600;
+    font-size: 0.875rem;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.3s ease;
+    border: 1px solid var(--border);
+    cursor: pointer;
+}
+.btn-secondary:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background-color: rgba(var(--primary-rgb), 0.05);
+    transform: translateY(-2px);
+}
+.btn-secondary:active {
+    transform: scale(0.95);
+}
+

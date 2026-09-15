@@ -1,0 +1,11 @@
+{
+  "name": "hub-auditoria-sanpaolo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Hub de Auditoria San Paolo - site estatico. O unico passo de build gera public/js/firebase-config.js a partir das variaveis de ambiente da Vercel.",
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "node tools/build.js",
+    "test": "node --test tests/"
+  }
+}

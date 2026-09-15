@@ -1,0 +1,36 @@
+# Gerado no build. NUNCA commitar.
+/public/js/firebase-config.js
+
+# Dados operacionais reais. Contem nomes de funcionarios e notasInternas.
+# Ficam so na maquina local; o restore_backup.py le daqui.
+# Versionar isto e decisao permanente: o git nao esquece.
+/data/
+*backup*.json
+
+# Segredos
+.env
+.env.*
+!.env.example
+serviceAccount*.json
+*firebase-adminsdk*.json
+*.pem
+*.key
+*.p12
+
+# Vercel / Node / Python / editor
+.vercel/
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.vscode/
+.idea/
+coverage/
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~

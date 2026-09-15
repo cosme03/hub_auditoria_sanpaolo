@@ -1,0 +1,52 @@
+# 3a linha de defesa. A 1a e o .gitignore, a 2a e outputDirectory: "public".
+# NUNCA listar aqui: public/, tools/, package.json, vercel.json
+# NUNCA listar aqui: firebase-config.js (e GERADO dentro de public/js/ no build)
+
+# Dados operacionais
+data/
+backup*.json
+*backup*.json
+lojas_ka_official.json
+*.csv
+*.xlsx
+*.xls
+*.sqlite
+*.db
+
+# Segredos
+.env*
+*.pem
+*.key
+serviceAccount*.json
+*firebase-adminsdk*.json
+
+# Configuracao Firebase (fonte versionada, publicada pelo Console)
+firestore.rules
+firestore.indexes.json
+firebase.json
+.firebaserc
+
+# Documentacao e testes
+*.md
+docs/
+tests/
+*.test.js
+*_write_test.txt
+coverage/
+
+# Tooling local
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+.vscode/
+.idea/
+.github/
+
+# SO / Vercel / Git
+.DS_Store
+Thumbs.db
+desktop.ini
+.vercel/
+.git/
+.gitignore

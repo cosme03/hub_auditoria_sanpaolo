@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auditoria - San Paolo</title>
+
+    <!-- Controle de Cache para evitar versão desatualizada -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+
+    <!-- Firebase Compat SDK (works on file:// protocol) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+
+    <!-- Tailwind Scripts for Local Setup -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="../../js/tailwind-config.js"></script>
+    <link rel="stylesheet" href="../../css/styles.css">
+</head>
+
+<body class="bg-background text-mainText font-sans antialiased transition-colors duration-300 dark:bg-[#1a0f07] dark:text-[#f5f0e6]">
+
+    <div id="main-app" class="flex h-screen overflow-hidden bg-[var(--bg-color)] text-[var(--text-main)] transition-colors duration-300">
+        
+        <div id="sidebar-container"></div>
+
+        <main class="flex-1 overflow-x-hidden overflow-y-auto bg-[var(--bg-color)] p-4 md:p-8 custom-scrollbar relative">
+            <div id="view-dashboard">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                    <div class="flex items-center gap-3">
+
+                        <h1 class="text-2xl font-bold text-[var(--text-main)] m-0 flex items-center gap-3">
+                            <i class="ph-fill ph-chart-pie-slice text-[var(--primary)] text-2xl"></i> Dashboard
+                        </h1>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <input type="file" id="importBackupGeralInput" accept=".json" class="hidden" onchange="window.importarBackupCompletoAuditoria(event)">
+                        <button class="flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400 font-black text-[10px] uppercase tracking-[0.15em] transition-all duration-300 hover:bg-blue-500 hover:text-white hover:-translate-y-0.5 active:scale-95 shadow-sm" onclick="document.getElementById('importBackupGeralInput').click()" title="Restaurar backup completo de todas as coleções de Auditoria">
+                            <i class="ph ph-file-arrow-up text-base"></i> Restaurar Backup Geral
+                        </button>
+                        <button class="flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400 font-black text-[10px] uppercase tracking-[0.15em] transition-all duration-300 hover:bg-green-600 hover:text-white hover:-translate-y-0.5 active:scale-95 shadow-sm" onclick="window.exportarBackupCompletoAuditoria()" title="Baixar arquivo JSON com todas as coleções e dados do setor">
+                            <i class="ph ph-database text-base"></i> Backup Completo (JSON)
+                        </button>
+                        <button class="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-main)] font-black text-[10px] uppercase tracking-[0.15em] transition-all duration-300 hover:border-[var(--primary)] hover:text-[var(--primary)] hover:-translate-y-0.5 active:scale-95 shadow-sm" onclick="window.abrirModalAudiEquipe()">
+                            <i class="ph ph-users-three text-lg"></i> Gerenciar Equipe
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Barra de Filtros do Dashboard -->
+                <div class="bg-[var(--surface)] p-4 rounded-2xl border border-[var(--border)] mb-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fadeIn">
+                    <div class="flex items-center gap-3 w-full sm:w-auto">
+                        <div class="w-10 h-10 rounded-xl bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center text-xl shrink-0 shadow-inner">
+                            <i class="ph-fill ph-map-pin"></i>
+                        </div>
+                        <div class="flex-1 sm:flex-initial">
+                            <label class="block text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)] mb-0.5 opacity-70">Filtrar Visão por Regional</label>
+                            <select id="dashFilterRegional" onchange="window.renderDashboard()" class="w-full sm:w-[260px] bg-[var(--bg-color)] border border-[var(--border)] rounded-xl px-3 py-1.5 text-sm font-bold text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all shadow-sm cursor-pointer">
+                                <option value="">Todas as Regionais (Rede)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="dashFiltroInfo" class="text-xs font-semibold text-[var(--text-muted)] flex items-center gap-1.5 self-end sm:self-center">
+                        <i class="ph ph-info text-base text-[var(--primary)]"></i>
+                        <span>Exibindo visão consolidada da rede</span>
+                    </div>
+                </div>
+
+                <!-- KPIs -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+                    <div class="bg-[var(--surface)] p-6 rounded-2xl border border-[var(--border)] flex items-center gap-5 shadow-sm hover:shadow-md transition-all duration-300 group hover:-translate-y-1">
+                        <div class="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl bg-spPistache/10 text-spPistache group-hover:bg-spPistache group-hover:text-white transition-all duration-500 shadow-inner">
+                            <i class="ph-fill ph-chart-bar"></i>
+                        </div>
+                        <div>
+                            <p class="text-3xl font-black text-[var(--text-main)] m-0 leading-none" id="kpiMediaRede">-</p>
+                            <p class="text-[var(--text-muted)] text-[0.65rem] font-black uppercase tracking-widest mt-2 mb-0 opacity-70">Média da Rede</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-[var(--surface)] p-6 rounded-2xl border border-[var(--border)] flex items-center gap-5 shadow-sm hover:shadow-md transition-all duration-300 group hover:-translate-y-1">
+                        <div class="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl bg-spRed/10 text-spRed group-hover:bg-spRed group-hover:text-white transition-all duration-500 shadow-inner">
+                            <i class="ph-fill ph-trend-down"></i>
+                        </div>
+                        <div class="flex-1">
+                            <p class="text-3xl font-black text-[var(--text-main)] m-0 leading-none" id="kpiMenorNota">-</p>
+                            <p class="text-[var(--text-muted)] text-[0.65rem] font-black uppercase tracking-widest mt-2 mb-0 opacity-70">Menor Nota (Mês)</p>
+                            <div id="kpiMenorNotaLoja" class="text-[10px] font-bold text-red-500 truncate max-w-[100px] mt-1"></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-[var(--surface)] p-6 rounded-2xl border border-[var(--border)] flex items-center gap-5 shadow-sm hover:shadow-md transition-all duration-300 group hover:-translate-y-1">
+                        <div class="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl bg-brandBlue/10 text-brandBlue group-hover:bg-brandBlue group-hover:text-white transition-all duration-500 shadow-inner">
+                            <i class="ph-fill ph-calendar-check"></i>
+                        </div>
+                        <div>
+                            <p class="text-3xl font-black text-[var(--text-main)] m-0 leading-none" id="kpiCoberturaMes">0%</p>
+                            <p class="text-[var(--text-muted)] text-[0.65rem] font-black uppercase tracking-widest mt-2 mb-0 opacity-70">Cobertura do Mês</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-[var(--surface)] p-6 rounded-2xl border border-[var(--border)] flex items-center gap-5 shadow-sm hover:shadow-md transition-all duration-300 group hover:-translate-y-1">
+                        <div class="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl bg-green-500/10 text-green-500 group-hover:bg-green-500 group-hover:text-white transition-all duration-500 shadow-inner">
+                            <i class="ph-fill ph-timer"></i>
+                        </div>
+                        <div>
+                            <p class="text-3xl font-black text-[var(--text-main)] m-0 leading-none" id="kpiSlaGlobal">0%</p>
+                            <p class="text-[var(--text-muted)] text-[0.65rem] font-black uppercase tracking-widest mt-2 mb-0 opacity-70">Índice de SLA</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-[var(--surface)] p-6 rounded-2xl border border-[var(--border)] flex items-center gap-5 shadow-sm hover:shadow-md transition-all duration-300 group hover:-translate-y-1">
+                        <div class="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl bg-spLaranja/10 text-spLaranja group-hover:bg-spLaranja group-hover:text-white transition-all duration-500 shadow-inner">
+                            <i class="ph-fill ph-arrows-merge"></i>
+                        </div>
+                        <div>
+                            <p class="text-3xl font-black text-[var(--text-main)] m-0 leading-none" id="kpiMediaTentativas">0.0</p>
+                            <p class="text-[var(--text-muted)] text-[0.65rem] font-black uppercase tracking-widest mt-2 mb-0 opacity-70">Eficiência Visita</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-[var(--surface)] p-6 rounded-2xl border border-[var(--border)] flex items-center gap-5 shadow-sm hover:shadow-md transition-all duration-300 group hover:-translate-y-1">
+                        <div class="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl bg-red-600/10 text-red-600 group-hover:bg-red-600 group-hover:text-white transition-all duration-500 shadow-inner">
+                            <i class="ph-fill ph-warning-octagon"></i>
+                        </div>
+                        <div>
+                            <p class="text-3xl font-black text-[var(--text-main)] m-0 leading-none" id="kpiLojasAtrasadas">0</p>
+                            <p class="text-[var(--text-muted)] text-[0.65rem] font-black uppercase tracking-widest mt-2 mb-0 opacity-70">Visitas Atrasadas</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-[var(--surface)] p-6 rounded-2xl border border-[var(--border)] flex items-center gap-5 shadow-sm hover:shadow-md transition-all duration-300 group hover:-translate-y-1">
+                        <div class="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl bg-[var(--primary)]/10 text-[var(--primary)] group-hover:bg-[var(--primary)] group-hover:text-white transition-all duration-500 shadow-inner">
+                            <i class="ph-fill ph-calculator"></i>
+                        </div>
+                        <div>
+                            <p class="text-3xl font-black text-[var(--text-main)] m-0 leading-none" id="kpiTotalAuditorias">0</p>
+                            <p class="text-[var(--text-muted)] text-[0.65rem] font-black uppercase tracking-widest mt-2 mb-0 opacity-70">Total Auditorias</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-[var(--surface)] p-6 rounded-2xl border border-[var(--border)] flex items-center gap-5 shadow-sm hover:shadow-md transition-all duration-300 group hover:-translate-y-1">
+                        <div class="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl bg-secondary/10 text-secondary group-hover:bg-secondary group-hover:text-white transition-all duration-500 shadow-inner">
+                            <i class="ph-fill ph-paper-plane-tilt"></i>
+                        </div>
+                        <div>
+                            <p class="text-3xl font-black text-[var(--text-main)] m-0 leading-none" id="kpiAuditoriaMes">0</p>
+                            <p class="text-[var(--text-muted)] text-[0.65rem] font-black uppercase tracking-widest mt-2 mb-0 opacity-70">Lançamentos (Mês)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gráficos -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                    <div class="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 shadow-sm">
+                        <h3 class="mt-0 mb-4 text-base font-semibold text-[var(--text-main)] flex items-center gap-2"><i class="ph ph-chart-bar text-[var(--primary)]"></i> Média por Regional</h3>
+                        <div class="h-[300px]"><canvas id="chartMediaRegional"></canvas></div>
+                    </div>
+                    <div class="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 shadow-sm">
+                        <h3 class="mt-0 mb-4 text-base font-semibold text-[var(--text-main)] flex items-center gap-2"><i class="ph ph-calendar-check text-secondary"></i> Status do Planejamento (Mês)</h3>
+                        <div class="h-[300px]"><canvas id="chartStatusPlanejamento"></canvas></div>
+                    </div>
+                    <div class="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 shadow-sm">
+                        <h3 class="mt-0 mb-4 text-base font-semibold text-[var(--text-main)] flex items-center gap-2"><i class="ph ph-ranking text-spLaranja"></i> Ranking Notas (Top 15 Loja)</h3>
+                        <div class="h-[300px]"><canvas id="chartRankingLojas"></canvas></div>
+                    </div>
+                </div>
+
+                <!-- Novos Indicadores de Tarefas -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5 mb-5">
+                    <div class="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 shadow-sm">
+                        <h3 class="mt-0 mb-4 text-base font-semibold text-[var(--text-main)] flex items-center gap-2"><i class="ph ph-kanban text-blue-500"></i> Status das Tarefas Ativas</h3>
+                        <div class="h-[300px]"><canvas id="chartTarefaStatus"></canvas></div>
+                    </div>
+                    <div class="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 shadow-sm">
+                        <h3 class="mt-0 mb-4 text-base font-semibold text-[var(--text-main)] flex items-center gap-2"><i class="ph ph-users-three text-purple-500"></i> Distribuição por Responsável</h3>
+                        <div class="h-[300px]"><canvas id="chartTarefaEquipe"></canvas></div>
+                    </div>
+                </div>
+
+                <!-- Lojas Críticas (2+ Tentativas sem Sucesso) -->
+                <div class="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 shadow-sm mb-8">
+                    <h3 class="mt-0 mb-4 text-base font-semibold text-spRed flex items-center gap-2">
+                        <i class="ph ph-warning-octagon"></i> Lojas Críticas - 2+ Tentativas sem Sucesso (Mês Atual)
+                    </h3>
+                    <div id="dashboardLojasCriticas" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div class="col-span-full py-10 text-center text-[var(--text-muted)]">Nenhuma loja crítica identificada.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AUDITORIA ONLINE (LANÇAMENTO DE NOTAS) -->
+            <div id="view-auditoriaOnline" style="display: none;">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                    <div class="flex items-center gap-3">
+
+                        <h1 class="text-2xl font-bold text-[var(--text-main)] m-0 flex items-center gap-3">
+                            <i class="ph-fill ph-clipboard-text text-[var(--primary)] text-2xl"></i> Auditoria Online
+                        </h1>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <input type="file" id="importNotasInput" accept=".xlsx, .xls, .json" class="hidden" onchange="window.importarNotasArquivo(event)">
+                        <button class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-main)] font-black text-[10px] uppercase tracking-[0.15em] transition-all duration-300 hover:border-blue-500 hover:text-blue-500 hover:-translate-y-0.5 active:scale-95 shadow-sm" onclick="document.getElementById('importNotasInput').click()" title="Importar planilha Excel ou arquivo JSON de Notas">
+                            <i class="ph ph-file-arrow-up text-lg text-blue-600"></i> Importar Excel/JSON
+                        </button>
+                        <button class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-main)] font-black text-[10px] uppercase tracking-[0.15em] transition-all duration-300 hover:border-green-500 hover:text-green-500 hover:-translate-y-0.5 active:scale-95 shadow-sm" onclick="window.exportarNotasPowerBI()" title="Exportar para Excel formato PowerBI">
+                            <i class="ph ph-microsoft-excel-logo text-lg text-green-600"></i> Exportar Excel
+                        </button>
+                        <button class="flex items-center justify-center gap-2 px-3 py-2.5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-main)] font-black text-[10px] uppercase tracking-[0.15em] transition-all duration-300 hover:border-purple-500 hover:text-purple-500 hover:-translate-y-0.5 active:scale-95 shadow-sm" onclick="window.exportarNotasJSON()" title="Exportar Backup JSON">
+                            <i class="ph ph-code text-lg text-purple-600"></i> JSON
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Formulário de Nova Nota -->
+                <div class="bg-[var(--surface)] p-6 rounded-xl border border-[var(--border)] mb-8 shadow-sm">
+                    <h3 class="mt-0 mb-5 text-[var(--text-main)] flex items-center gap-2 text-lg font-semibold">
+                        <i class="ph ph-plus-circle text-[var(--primary)]"></i> Lançar Nova Auditoria
+                    </h3>
+                    <div class="flex flex-wrap gap-5 items-end">
+                        <div class="flex-1 min-w-[250px]">
+                            <label class="block text-sm font-semibold text-[var(--text-muted)] mb-2">Selecione a Loja Central</label>
+                            <select id="audiSelectLoja" class="w-full border border-[var(--border)] rounded-xl p-2.5 bg-[var(--bg-color)] text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all duration-300 shadow-sm">
+                                <option value="">Carregando Lojas...</option>
+                            </select>
+                        </div>
+                        <div class="flex-1 min-w-[180px]">
+                            <label class="block text-sm font-semibold text-[var(--text-muted)] mb-2">Data da Auditoria</label>
+                            <input type="date" id="audiDataInput" class="w-full border border-[var(--border)] rounded-xl p-2.5 bg-[var(--bg-color)] text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all duration-300 shadow-sm">
+                        </div>
+                        <div class="w-[120px]">
+                            <label class="block text-sm font-semibold text-[var(--text-muted)] mb-2">Nota (0 a 10)</label>
+                            <input type="number" id="audiNotaInput" min="0" max="10" step="0.1" placeholder="Ex: 8.5" class="w-full border border-[var(--border)] rounded-xl p-2.5 font-bold text-[var(--primary)] bg-[var(--bg-color)] outline-none focus:border-[var(--primary)] transition-all duration-300 shadow-sm">
+                        </div>
+                        <button class="flex items-center justify-center gap-2.5 px-6 py-2.5 h-[50px] rounded-2xl bg-[var(--primary)] text-white font-black text-[10px] uppercase tracking-[0.15em] transition-all duration-300 hover:brightness-110 hover:-translate-y-0.5 active:scale-95 shadow-lg shadow-[var(--primary)]/20" onclick="window.salvarAuditoriaOnline()">
+                            <i class="ph-fill ph-floppy-disk-back text-lg"></i> Gravar Auditoria
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Histórico de Notas da Rede -->
+                <h3 class="mb-4 text-[var(--text-main)] flex items-center gap-2 text-lg font-semibold">
+                    <i class="ph ph-clock-counter-clockwise"></i> Histórico Recente de Avaliações
+                </h3>
+                <div class="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden shadow-sm">
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full border-collapse text-left">
+                            <thead>
+                                <tr class="bg-spRed/5 border-b border-[var(--border)]">
+                                    <th class="p-4 font-semibold text-sm text-[var(--text-muted)]">Data</th>
+                                    <th class="p-4 font-semibold text-sm text-[var(--text-muted)]">Loja Avaliada</th>
+                                    <th class="p-4 font-semibold text-sm text-[var(--text-muted)]">Auditor</th>
+                                    <th class="p-4 font-semibold text-sm text-[var(--text-muted)] text-right">Nota Final</th>
+                                    <th class="p-4 font-semibold text-sm text-[var(--text-muted)] text-center">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="audiHistoricoBody" class="divide-y divide-[var(--border)]">
+                                <!-- Preenchido pelo JS -->
+                                <tr>
+                                    <td colspan="4" class="p-5 text-center text-[var(--text-muted)]">Carregando histórico...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- MAPEAMENTO DE TENTATIVAS (Substitui Planilha) -->
+            <!-- PLANEJAMENTO DE AUDITORIAS -->
+            <div id="view-planejamento" style="display: none;">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                    <div class="flex items-center gap-3">
+
+                        <h1 class="text-2xl font-bold text-[var(--text-main)] m-0 flex items-center gap-3">
+                            <i class="ph-fill ph-calendar-check text-[var(--primary)] text-2xl"></i> Planejamento
+                        </h1>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-[var(--primary)] text-white font-black text-[10px] uppercase tracking-[0.15em] transition-all duration-300 hover:brightness-110 hover:-translate-y-0.5 active:scale-95 shadow-md" onclick="window.abrirControleMensal()">
+                            <i class="ph-fill ph-chart-bar text-lg"></i> Controle Mensal
+                        </button>
+                        <input type="file" id="importPlanejamentoInput" accept=".xlsx, .xls, .json" class="hidden" onchange="window.importarPlanejamentoArquivo(event)">
+                        <button class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-main)] font-black text-[10px] uppercase tracking-[0.15em] transition-all duration-300 hover:border-blue-500 hover:text-blue-500 hover:-translate-y-0.5 active:scale-95 shadow-sm" onclick="document.getElementById('importPlanejamentoInput').click()" title="Importar planilha Excel ou JSON de Planejamento">
+                            <i class="ph ph-file-arrow-up text-lg text-blue-600"></i> Importar Excel/JSON
+                        </button>
+                        <button class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-main)] font-black text-[10px] uppercase tracking-[0.15em] transition-all duration-300 hover:border-green-500 hover:text-green-500 hover:-translate-y-0.5 active:scale-95 shadow-sm" onclick="window.exportarPlanejamentoPowerBI()" title="Exportar para Excel com Notas Internas e Regionais">
+                            <i class="ph ph-microsoft-excel-logo text-lg text-green-600"></i> Exportar Excel
+                        </button>
+                        <button class="flex items-center justify-center gap-2 px-3 py-2.5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-main)] font-black text-[10px] uppercase tracking-[0.15em] transition-all duration-300 hover:border-purple-500 hover:text-purple-500 hover:-translate-y-0.5 active:scale-95 shadow-sm" onclick="window.exportarPlanejamentoJSON()" title="Exportar Backup JSON">
+                            <i class="ph ph-code text-lg text-purple-600"></i> JSON
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Filtros para Planejamento -->
+                <div class="bg-[var(--surface)] p-5 rounded-xl border border-[var(--border)] mb-4 shadow-sm flex flex-col gap-4">
+                    <div class="flex flex-wrap gap-4 items-center">
+                        <div class="flex-1 min-w-[200px] relative">
+                            <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"></i>
+                            <input type="text" id="planSearch" placeholder="Buscar por loja ou regional..." oninput="window.renderizarTabelaPlanejamento()" class="w-full pl-10 pr-4 py-2.5 bg-[var(--bg-color)] border border-[var(--border)] rounded-xl text-sm outline-none focus:border-[var(--primary)] transition-all duration-300 shadow-sm">
+                        </div>
+                        <div class="w-full md:w-[150px]">
+                            <select id="planFilterRegional" onchange="window.renderizarTabelaPlanejamento()" class="w-full border border-[var(--border)] rounded-xl p-2.5 bg-[var(--bg-color)] text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all duration-300 shadow-sm text-sm">
+                                <option value="">Todas Regionais</option>
+                            </select>
+                        </div>
+                        <div class="w-full md:w-[180px]">
+                            <select id="planFilterAuditor" onchange="window.renderizarTabelaPlanejamento()" class="w-full border border-[var(--border)] rounded-xl p-2.5 bg-[var(--bg-color)] text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all duration-300 shadow-sm text-sm">
+                                <option value="">Todos Auditores</option>
+                            </select>
+                        </div>
+                        <div class="w-full md:w-[150px]">
+                            <select id="planFilterStatus" onchange="window.renderizarTabelaPlanejamento()" class="w-full border border-[var(--border)] rounded-xl p-2.5 bg-[var(--bg-color)] text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all duration-300 shadow-sm text-sm">
+                                <option value="">Status (Todos)</option>
+                                <option value="AGENDADA_OU_ATRASADA">Agendada / Atrasada</option>
+                                <option value="CONCLUIDA">Concluída</option>
+                                <option value="NAO_AGENDADA">Não Agendado</option>
+                            </select>
+                        </div>
+                        <div class="w-full md:w-[150px]">
+                            <input type="date" id="planFilterData" onchange="window.renderizarTabelaPlanejamento()" class="w-full border border-[var(--border)] rounded-xl p-2.5 bg-[var(--bg-color)] text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all duration-300 shadow-sm text-sm" title="Filtrar por data agendada">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden mt-5 shadow-sm">
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full border-collapse text-left">
+                            <thead>
+                                <tr class="bg-brandBlue/5 border-b-2 border-[var(--border)]">
+                                    <th onclick="window.sortPlanejamento('loja')"
+                                        class="p-4 font-semibold text-sm text-[var(--text-muted)] cursor-pointer select-none hover:text-[var(--text-main)] transition-colors">
+                                        Loja / Matriz <i class="ph ph-caret-up-down text-[10px] align-middle"></i></th>
+                                    <th onclick="window.sortPlanejamento('regional')"
+                                        class="p-4 font-semibold text-sm text-[var(--text-muted)] cursor-pointer select-none hover:text-[var(--text-main)] transition-colors">
+                                        Regional <i class="ph ph-caret-up-down text-[10px] align-middle"></i></th>
+                                    <th onclick="window.sortPlanejamento('ultima')"
+                                        class="p-4 font-semibold text-sm text-[var(--text-muted)] cursor-pointer select-none hover:text-[var(--text-main)] transition-colors">
+                                        Última Auditoria <i class="ph ph-caret-up-down text-[10px] align-middle"></i>
+                                    </th>
+                                    <th onclick="window.sortPlanejamento('proxima')"
+                                        class="p-4 font-semibold text-sm text-[var(--text-muted)] cursor-pointer select-none hover:text-[var(--text-main)] transition-colors">
+                                        Próxima Prevista <i class="ph ph-caret-up-down text-[10px] align-middle"></i>
+                                    </th>
+                                    <th onclick="window.sortPlanejamento('auditor')"
+                                        class="p-4 font-semibold text-sm text-[var(--text-muted)] cursor-pointer select-none hover:text-[var(--text-main)] transition-colors">
+                                        Auditor / Responsável <i class="ph ph-caret-up-down text-[10px] align-middle"></i></th>
+                                    <th class="p-4 font-semibold text-sm text-[var(--text-muted)] text-center">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="planejamentoTableBody" class="divide-y divide-[var(--border)]">
+                                <!-- JS monta as linhas -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- OFF-CANVAS CONTROLE MENSAL -->
+                <div id="sidebarControleMensal" class="fixed inset-y-0 right-0 w-full md:w-[450px] bg-[var(--surface)] shadow-2xl transform translate-x-full transition-transform duration-300 z-50 flex flex-col border-l border-[var(--border)]">
+                    <div class="flex items-center justify-between p-5 border-b border-[var(--border)] bg-[var(--bg-color)]">
+                        <div class="flex items-center gap-3">
+                            <h2 class="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
+                                <i class="ph-fill ph-chart-bar text-[var(--primary)]"></i> Controle
+                            </h2>
+                            <input type="month" id="ctrlMesInput" class="bg-[var(--surface)] text-sm font-semibold border border-[var(--border)] rounded-lg px-2 py-1 text-[var(--text-main)] focus:outline-none focus:border-[var(--primary)] cursor-pointer" onchange="window.renderizarControleMensal()">
+                        </div>
+                        <button class="w-8 h-8 flex items-center justify-center rounded-full text-[var(--text-muted)] hover:bg-black/10 dark:hover:bg-white/10 transition-colors" onclick="window.fecharControleMensal()">
+                            <i class="ph ph-x text-lg"></i>
+                        </button>
+                    </div>
+
+                    <div class="flex border-b border-[var(--border)]">
+                        <button class="flex-1 py-3 text-sm font-bold text-[var(--primary)] border-b-2 border-[var(--primary)] transition-colors" id="tabCtrlAuditor" onclick="window.switchTabControle('auditor')">Por Auditor</button>
+                        <button class="flex-1 py-3 text-sm font-bold text-[var(--text-muted)] border-b-2 border-transparent hover:text-[var(--text-main)] transition-colors" id="tabCtrlLoja" onclick="window.switchTabControle('loja')">Por Loja</button>
+                    </div>
+
+                    <div class="flex-1 overflow-y-auto p-5 custom-scrollbar">
+                        <!-- Aba Por Auditor -->
+                        <div id="viewCtrlAuditor" class="space-y-4">
+                            <div class="text-sm font-semibold text-[var(--text-muted)] uppercase mb-3 flex items-center justify-between">
+                                <span>Equipe de Auditoria</span>
+                                <span class="bg-[var(--primary)]/10 text-[var(--primary)] px-2 py-0.5 rounded-full text-xs" id="ctrlTotalAuditores">0</span>
+                            </div>
+                            <div id="listaCtrlAuditor" class="space-y-3">
+                                <!-- Preenchido via JS -->
+                            </div>
+                        </div>
+
+                        <!-- Aba Por Loja -->
+                        <div id="viewCtrlLoja" class="hidden space-y-4">
+                            <div class="flex items-center gap-2 mb-3">
+                                <i class="ph ph-magnifying-glass text-[var(--text-muted)] absolute ml-3"></i>
+                                <input type="text" id="ctrlSearchLoja" placeholder="Buscar loja..." class="w-full border border-[var(--border)] rounded-xl pl-9 p-2.5 bg-[var(--bg-color)] text-[var(--text-main)] outline-none focus:border-[var(--primary)] text-sm" oninput="window.renderizarControleLoja()">
+                            </div>
+                            <div id="listaCtrlLoja" class="space-y-4">
+                                <!-- Preenchido via JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- OVERLAY DO OFF-CANVAS -->
+                <div id="overlayControleMensal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 hidden opacity-0 transition-opacity duration-300" onclick="window.fecharControleMensal()"></div>
+            </div>
+
+            <div id="view-mapeamento" style="display: none;">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                    <div class="flex items-center gap-3">
+
+                        <h1 class="text-2xl font-bold text-[var(--text-main)] m-0 flex items-center gap-3">
+                            <i class="ph-fill ph-map-trifold text-[var(--primary)] text-2xl"></i> Mapeamento
+                        </h1>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <input type="file" id="importMapeamentoInput" accept=".xlsx, .xls, .json" class="hidden" onchange="window.importarMapeamentoArquivo(event)">
+                        <button class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-main)] font-black text-[10px] uppercase tracking-[0.15em] transition-all duration-300 hover:border-blue-500 hover:text-blue-500 hover:-translate-y-0.5 active:scale-95 shadow-sm" onclick="document.getElementById('importMapeamentoInput').click()" title="Importar tentativas de auditoria em Excel ou JSON">
+                            <i class="ph ph-file-arrow-up text-lg text-blue-600"></i> Importar Excel/JSON
+                        </button>
+                        <button class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-main)] font-black text-[10px] uppercase tracking-[0.15em] transition-all duration-300 hover:border-green-500 hover:text-green-500 hover:-translate-y-0.5 active:scale-95 shadow-sm" onclick="window.exportarMapeamentoPowerBI()" title="Exportar histórico de tentativas para Excel">
+                            <i class="ph ph-microsoft-excel-logo text-lg text-green-600"></i> Exportar Excel
+                        </button>
+                        <button class="flex items-center justify-center gap-2 px-3 py-2.5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-main)] font-black text-[10px] uppercase tracking-[0.15em] transition-all duration-300 hover:border-purple-500 hover:text-purple-500 hover:-translate-y-0.5 active:scale-95 shadow-sm" onclick="window.exportarMapeamentoJSON()" title="Exportar Backup JSON">
+                            <i class="ph ph-code text-lg text-purple-600"></i> JSON
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Formulário de Registro de Tentativa -->
+                <div class="bg-[var(--surface)] p-6 rounded-xl border border-[var(--border)] mb-8 shadow-sm">
+                    <h3 class="mt-0 mb-5 text-[var(--text-main)] flex items-center gap-2 text-lg font-semibold">
+                        <i class="ph ph-calendar-plus text-[var(--primary)]"></i> Registrar Tentativa de Auditoria
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                        <div>
+                            <label class="block text-sm font-semibold text-[var(--text-muted)] mb-2">Unidade (Loja)</label>
+                            <select id="mapSelectLoja" class="w-full border border-[var(--border)] rounded-xl p-2.5 bg-[var(--bg-color)] text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all duration-300 shadow-sm">
+                                <!-- Preenchido dinamicamente -->
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-[var(--text-muted)] mb-2">Data da Tentativa</label>
+                            <input type="date" id="mapDataInput" class="w-full border border-[var(--border)] rounded-xl p-2.5 bg-[var(--bg-color)] text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all duration-300 shadow-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-[var(--text-muted)] mb-2">Realizada?</label>
+                            <select id="mapRealizadaSelect" class="w-full border border-[var(--border)] rounded-xl p-2.5 bg-[var(--bg-color)] text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all duration-300 shadow-sm" onchange="window.toggleMapJustificativa()">
+                                <option value="SIM">SIM</option>
+                                <option value="NÃO">NÃO</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-[var(--text-muted)] mb-2">Auditor Responsável</label>
+                            <select id="mapSelectAuditor" class="w-full border border-[var(--border)] rounded-xl p-2.5 bg-[var(--bg-color)] text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all duration-300 shadow-sm">
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                        <div class="lg:col-span-4 flex justify-end">
+                            <button class="w-full md:w-auto flex items-center justify-center gap-2.5 px-8 py-3 rounded-2xl bg-[var(--primary)] text-white font-black text-[10px] uppercase tracking-[0.15em] transition-all duration-300 hover:brightness-110 hover:-translate-y-0.5 active:scale-95 shadow-lg shadow-[var(--primary)]/20" onclick="window.salvarTentativaMapeamento()">
+                                <i class="ph-fill ph-plus-circle text-lg"></i> Registrar Tentativa
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="mapJustificativaContainer" class="mt-4 hidden animate-fade-in">
+                        <label class="block text-sm font-semibold text-[var(--text-muted)] mb-2">Justificativa / Motivo (Obrigatório se NÃO realizada)</label>
+                        <select id="mapJustificativaSelect" class="w-full border border-[var(--border)] rounded-lg p-2.5 bg-[var(--bg-color)] text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-colors">
+                            <option value="">Selecione um motivo...</option>
+                            <option value="LOJA EM OBRA/MANUTENÇÃO">LOJA EM OBRA/MANUTENÇÃO</option>
+                            <option value="LOJA NÃO ATENDEU A LIGAÇÃO">LOJA NÃO ATENDEU A LIGAÇÃO</option>
+                            <option value="ENCARREGADO NÃO ESTAVA EM LOJA">ENCARREGADO NÃO ESTAVA EM LOJA</option>
+                            <option value="ESCALA ERRADA">ESCALA ERRADA</option>
+                            <option value="CONTATO ERRADO">CONTATO ERRADO</option>
+                            <option value="COLABORADOR NA REUNIÃO DE ENCARREGADOS">COLABORADOR NA REUNIÃO DE ENCARREGADOS</option>
+                            <option value="ATITUDE SUSPEITA">ATITUDE SUSPEITA</option>
+                            <option value="ENCARREGADO NÃO ATENDEU">ENCARREGADO NÃO ATENDEU</option>
+                            <option value="COLABORADOR NO INTERVALO">COLABORADOR NO INTERVALO</option>
+                            <option value="COLABORADOR SOZINHO EM LOJA">COLABORADOR SOZINHO EM LOJA</option>
+                            <option value="COLABORADOR FORA DO EXPEDIENTE">COLABORADOR FORA DO EXPEDIENTE</option>
+                            <option value="COLABORADOR EM ATENDIMENTO">COLABORADOR EM ATENDIMENTO</option>
+                            <option value="FUNCIONÁRIO FAZENDO CONTAGEM SEMANAL">FUNCIONÁRIO FAZENDO CONTAGEM SEMANAL</option>
+                            <option value="COLABORADOR ARRUMANDO A LOJA EM HORÁRIO ERRADO">COLABORADOR ARRUMANDO A LOJA EM HORÁRIO ERRADO</option>
+                            <option value="Outro (Descrever nas notas)">Outro...</option>
+                        </select>
+                        <textarea id="mapNotas" placeholder="Observações adicionais..." class="w-full mt-2 border border-[var(--border)] rounded-lg p-2.5 bg-[var(--bg-color)] text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-colors resize-none" rows="2"></textarea>
+                    </div>
+                </div>
+
+                <!-- Filtros e Listagem -->
+                <div class="bg-[var(--surface)] p-5 rounded-xl border border-[var(--border)] mb-4 shadow-sm flex flex-col gap-4">
+                    <div class="flex flex-wrap gap-4 items-center">
+                        <div class="flex-1 min-w-[200px] relative">
+                            <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"></i>
+                            <input type="text" id="mapSearch" placeholder="Buscar por loja ou notas..." oninput="window.renderizarMapeamento()" class="w-full pl-10 pr-4 py-2.5 bg-[var(--bg-color)] border border-[var(--border)] rounded-xl text-sm outline-none focus:border-[var(--primary)] transition-all duration-300 shadow-sm">
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input type="date" id="mapFilterInicio" onchange="window.renderizarMapeamento()" class="border border-[var(--border)] rounded-xl p-2 bg-[var(--bg-color)] text-[var(--text-main)] text-sm outline-none focus:border-[var(--primary)] transition-all duration-300 shadow-sm">
+                            <span class="text-[var(--text-muted)] text-xs font-bold uppercase">até</span>
+                            <input type="date" id="mapFilterFim" onchange="window.renderizarMapeamento()" class="border border-[var(--border)] rounded-xl p-2 bg-[var(--bg-color)] text-[var(--text-main)] text-sm outline-none focus:border-[var(--primary)] transition-all duration-300 shadow-sm">
+                        </div>
+                        <div class="w-full md:w-[150px]">
+                            <select id="mapFilterRegional" onchange="window.renderizarMapeamento()" class="w-full border border-[var(--border)] rounded-xl p-2.5 bg-[var(--bg-color)] text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all duration-300 shadow-sm text-sm">
+                                <option value="">Todas Regionais</option>
+                            </select>
+                        </div>
+                        <div class="w-full md:w-[150px]">
+                            <select id="mapFilterAuditor" onchange="window.renderizarMapeamento()" class="w-full border border-[var(--border)] rounded-xl p-2.5 bg-[var(--bg-color)] text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all duration-300 shadow-sm text-sm">
+                                <option value="">Todos Auditores</option>
+                            </select>
+                        </div>
+                        <div class="w-full md:w-[130px]">
+                            <select id="mapFilterRealizada" onchange="window.renderizarMapeamento()" class="w-full border border-[var(--border)] rounded-xl p-2.5 bg-[var(--bg-color)] text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all duration-300 shadow-sm text-sm">
+                                <option value="">Status (Todos)</option>
+                                <option value="SIM">SIM</option>
+                                <option value="NÃO">NÃO</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-center justify-between gap-4 px-1">
+                        <div class="flex items-center gap-3">
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="mapFilterCritico" onchange="window.renderizarMapeamento()" class="sr-only peer">
+                                <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-500"></div>
+                                <span class="ml-3 text-sm font-medium text-[var(--text-main)]">Ver apenas lojas com 2+ tentativas (Críticas)</span>
+                            </label>
+                        </div>
+                        <button id="btnBulkDeleteMapeamento" onclick="window.excluirMapeamentoEmMassa()" class="hidden items-center gap-2 px-4 py-2 bg-red-100 text-red-600 hover:bg-red-200 rounded-lg text-sm font-bold transition-all animate-fade-in border border-red-200">
+                            <i class="ph ph-trash"></i> Excluir Selecionados (<span id="countSelectedMapeamento">0</span>)
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden shadow-sm">
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full border-collapse text-left">
+                            <thead class="bg-black/5 dark:bg-black/20 border-b border-[var(--border)]">
+                                <tr>
+                                    <th class="p-4 w-10">
+                                        <input type="checkbox" id="selectAllMapeamento" onchange="window.toggleSelectAllMapeamento(this.checked)" class="rounded border-[var(--border)] text-[var(--primary)] focus:ring-[var(--primary)] cursor-pointer">
+                                    </th>
+                                    <th onclick="window.sortMapeamento('dataTentativa')" class="p-4 font-bold text-xs text-[var(--text-muted)] uppercase cursor-pointer hover:text-[var(--primary)] transition-colors">Mês/Data <i class="ph ph-caret-up-down"></i></th>
+                                    <th onclick="window.sortMapeamento('nTentativa')" class="p-4 font-bold text-xs text-[var(--text-muted)] uppercase cursor-pointer hover:text-[var(--primary)] transition-colors">Tentativa <i class="ph ph-caret-up-down"></i></th>
+                                    <th onclick="window.sortMapeamento('estado')" class="p-4 font-bold text-xs text-[var(--text-muted)] uppercase cursor-pointer hover:text-[var(--primary)] transition-colors">UF <i class="ph ph-caret-up-down"></i></th>
+                                    <th onclick="window.sortMapeamento('nomeLoja')" class="p-4 font-bold text-xs text-[var(--text-muted)] uppercase cursor-pointer hover:text-[var(--primary)] transition-colors">Loja <i class="ph ph-caret-up-down"></i></th>
+                                    <th onclick="window.sortMapeamento('realizada')" class="p-4 font-bold text-xs text-[var(--text-muted)] uppercase text-center cursor-pointer hover:text-[var(--primary)] transition-colors">Realizada? <i class="ph ph-caret-up-down"></i></th>
+                                    <th onclick="window.sortMapeamento('auditor')" class="p-4 font-bold text-xs text-[var(--text-muted)] uppercase cursor-pointer hover:text-[var(--primary)] transition-colors">Auditor <i class="ph ph-caret-up-down"></i></th>
+                                    <th class="p-4 font-bold text-xs text-[var(--text-muted)] uppercase">Motivo/Notas</th>
+                                    <th onclick="window.sortMapeamento('sla')" class="p-4 font-bold text-xs text-[var(--text-muted)] uppercase text-right cursor-pointer hover:text-[var(--primary)] transition-colors">SLA <i class="ph ph-caret-up-down"></i></th>
+                                    <th class="p-4 font-bold text-xs text-[var(--text-muted)] uppercase text-right">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="mapHistoricoBody" class="divide-y divide-[var(--border)]">
+                                <tr><td colspan="9" class="p-10 text-center text-[var(--text-muted)]">Carregando dados...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAREFAS (KANBAN) -->
+            <!-- TAREFAS (KANBAN) -->
+            <div id="view-tarefas" style="display: none;">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                    <div class="flex items-center gap-3">
+
+                        <h1 class="text-2xl font-bold text-[var(--text-main)] m-0 flex items-center gap-3">
+                            <i class="ph-fill ph-kanban text-[var(--primary)] text-2xl"></i> Tarefas da Equipe
+                        </h1>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <div class="relative hidden lg:block">
+                            <i class="ph ph-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-lg"></i>
+                            <input type="text" id="taskSearchInput" placeholder="Buscar tarefa..." 
+                                class="pl-11 pr-4 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm transition-all duration-300 focus:border-[var(--primary)] outline-none w-48 focus:w-64 shadow-sm"
+                                oninput="window.renderizarAudiProjetosList()">
+                        </div>
+                        <input type="file" id="importTarefasInput" accept=".xlsx, .xls, .json" class="hidden" onchange="window.importarTarefasArquivo(event)">
+                        <button class="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-main)] font-semibold shadow-sm transition-all duration-300 hover:border-blue-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 active:scale-95" onclick="document.getElementById('importTarefasInput').click()" title="Importar tarefas da equipe em Excel ou JSON">
+                            <i class="ph ph-file-arrow-up text-lg text-blue-600"></i> <span class="hidden sm:inline">Importar</span>
+                        </button>
+                        <button class="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-main)] font-semibold shadow-sm transition-all duration-300 hover:border-green-500 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 active:scale-95" onclick="window.exportarTarefasExcel()" title="Exportar todas as tarefas com checklists e comentários para Excel">
+                            <i class="ph ph-microsoft-excel-logo text-lg text-green-600"></i> <span class="hidden sm:inline">Exportar Excel</span>
+                        </button>
+                        <button class="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-main)] font-semibold shadow-sm transition-all duration-300 hover:border-purple-500 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 active:scale-95" onclick="window.exportarTarefasJSON()" title="Exportar Backup JSON completo">
+                            <i class="ph ph-code text-lg text-purple-600"></i> <span class="hidden sm:inline">JSON</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="audiMembrosEquipeContainer"
+                    class="flex gap-2 mb-6 flex-wrap">
+                    <!-- Carregado via JS -->
+                </div>
+                <!-- Botão para mostrar formulário de nova tarefa -->
+                <div id="btnNovaTarefaContainer" class="mb-6">
+                    <button class="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl bg-[var(--surface)] text-[var(--primary)] border-2 border-dashed border-[var(--primary)] font-bold text-lg hover:bg-[var(--primary)]/5 hover:scale-[1.01] transition-all shadow-sm group" onclick="window.toggleFormTarefa()">
+                        <i class="ph ph-plus-circle text-2xl group-hover:rotate-90 transition-transform duration-300"></i> Nova Demanda / Tarefa
+                    </button>
+                </div>
+
+                <div id="formNovaTarefa" class="bg-[var(--surface)] p-6 rounded-xl border border-[var(--border)] mb-8 shadow-sm hidden animate-fadeIn">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-bold text-[var(--text-main)] m-0">Registrar Nova Demanda</h3>
+                    </div>
+                    <input type="text" id="audiProjDesc" placeholder="Título da tarefa ou projeto"
+                        class="w-full px-4 py-3 bg-[var(--bg-color)]/50 border border-[var(--border)] rounded-xl text-[var(--text-main)] mb-3 transition-all duration-300 focus:border-[var(--primary)] outline-none font-medium shadow-sm">
+                    <textarea id="audiProjDetalhes" rows="3" placeholder="Descrição detalhada..."
+                        class="w-full px-4 py-3 bg-[var(--bg-color)]/50 border border-[var(--border)] rounded-xl text-[var(--text-main)] mb-3 transition-all duration-300 focus:border-[var(--primary)] outline-none resize-y min-h-[80px] shadow-sm"></textarea>
+                    <div class="flex flex-wrap gap-3 mb-3">
+                        <input type="text" id="audiProjDemand" placeholder="Demandante" class="flex-2 min-w-[150px] px-4 py-2.5 bg-[var(--bg-color)]/50 border border-[var(--border)] rounded-xl text-[var(--text-main)] transition-all duration-300 focus:border-[var(--primary)] outline-none shadow-sm">
+                        <div class="flex-1 min-w-[120px] flex flex-col gap-1">
+                            <label class="text-[0.65rem] font-black text-[var(--text-muted)] uppercase tracking-widest ml-1 opacity-60">Prazo Sugerido</label>
+                            <input type="date" id="audiProjDate" class="w-full px-4 py-2 bg-[var(--bg-color)]/50 border border-[var(--border)] rounded-xl text-[var(--text-main)] transition-all duration-300 focus:border-[var(--primary)] outline-none shadow-sm">
+                        </div>
+                        <div class="flex-1 min-w-[150px] flex flex-col gap-1">
+                            <label class="text-[0.65rem] font-black text-[var(--text-muted)] uppercase tracking-widest ml-1 opacity-60">Membros Responsáveis</label>
+                            <div id="selectedResponsaveisCreation" class="flex flex-wrap gap-1 mt-1 mb-2"></div>
+                            <select id="projRespSelect" class="w-full px-4 py-2 bg-[var(--bg-color)]/50 border border-[var(--border)] rounded-xl text-[var(--text-main)] transition-all duration-300 focus:border-[var(--primary)] outline-none shadow-sm" onchange="window.adicionarResponsavelCriacaoAudi(this.value); this.value='';">
+                                <option value="">+ Adicionar Responsável</option>
+                                <!-- Populado via JS -->
+                            </select>
+                        </div>
+                        <select id="audiProjStatus" class="flex-1 min-w-[120px] px-4 py-2.5 bg-[var(--bg-color)]/50 border border-[var(--border)] rounded-xl text-[var(--text-main)] transition-all duration-300 focus:border-[var(--primary)] outline-none shadow-sm font-bold">
+                            <option value="Pendente">Pendente</option>
+                            <option value="Em Andamento">Em Andamento</option>
+                            <option value="Concluído">Concluído</option>
+                        </select>
+                    </div>
+                    <!-- Link para a tarefa -->
+                    <input type="url" id="audiProjAnexo" placeholder="Link para visualização/anexo (Opcional)"
+                        class="w-full px-4 py-2 bg-[var(--bg-color)]/50 border border-[var(--border)] rounded-xl text-[var(--text-main)] mb-4 transition-colors focus:border-[var(--primary)] outline-none shadow-sm">
+
+                    <!-- Checklist durante a criação -->
+                    <div class="mb-4 p-4 bg-[var(--bg-color)]/50 rounded-lg border border-[var(--border)] border-dashed">
+                        <label class="text-[0.7rem] font-bold text-[var(--text-muted)] uppercase mb-2 block">Checklist da Tarefa (Opcional)</label>
+                        <div class="flex gap-2 mb-3">
+                            <input type="text" id="newCheckItemCreation" placeholder="Adicionar sub-tarefa..." class="flex-1 px-3 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-md text-sm outline-none focus:border-[var(--primary)]" onkeypress="if(event.key==='Enter') window.addCheckItemCreation()">
+                            <button class="px-4 py-2 bg-[var(--surface)] text-[var(--primary)] border border-[var(--primary)] rounded-md hover:bg-[var(--primary)] hover:text-white transition-all text-sm font-bold shadow-sm" onclick="window.addCheckItemCreation()"><i class="ph ph-plus"></i> Adicionar</button>
+                        </div>
+                        <div id="creationChecklistList" class="flex flex-col gap-2 max-h-40 overflow-y-auto custom-scrollbar">
+                            <!-- Itens adicionados aparecem aqui -->
+                        </div>
+                    </div>
+
+                    <div class="flex gap-3">
+                        <button class="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[var(--primary)] text-white border border-[var(--primary)] font-semibold shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md hover:brightness-110" onclick="window.salvarAudiProjeto()">
+                            <i class="ph ph-floppy-disk text-lg"></i> Salvar Registro
+                        </button>
+                        <button class="px-5 py-2.5 rounded-lg bg-[var(--bg-color)] text-[var(--text-muted)] border border-[var(--border)] font-semibold transition-all hover:bg-black/5 dark:hover:bg-white/5" onclick="window.toggleFormTarefa()">Cancelar</button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[1500px] p-2 w-full overflow-hidden" id="audi-projetos-list">
+                    <!-- Kanban JS -->
+                </div>
+            </div>
+
+            <!-- META PWR -->
+            <div id="view-metapwr" style="display: none;">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                    <div class="flex items-center gap-3">
+
+                        <h1 class="text-2xl font-bold text-[var(--text-main)] m-0 flex items-center gap-3">
+                            <i class="ph-fill ph-target text-[var(--primary)] text-2xl"></i> Meta PWR
+                        </h1>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
+                    <div class="bg-[var(--surface)] p-6 rounded-xl border border-[var(--border)] shadow-sm md:col-span-2">
+                        <h3 class="mt-0 text-lg font-semibold text-[var(--text-main)]">Análise de Correlação Custo x Receita</h3>
+                        <p class="text-[var(--text-muted)] text-sm mb-5">
+                            Este gráfico interativo é um protótipo (MVP) para analisar a dispersão das lojas em relação
+                            ao Custo de Mercadoria Vendida versus Faturamento de Vendas.
+                            Cada ponto representa uma loja.
+                        </p>
+                        <div class="w-full max-w-[900px] mx-auto min-h-[450px]">
+                            <canvas id="cmvScatterChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-protocolos" style="display: none;">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                    <div class="flex items-center gap-3">
+                        <h1 class="text-2xl font-bold text-[var(--text-main)] m-0">Protocolo de Chamados</h1>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <input type="file" id="importProtocolosInput" accept=".xlsx, .xls, .json" class="hidden" onchange="window.importarProtocolosArquivo(event)">
+                        <button class="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-main)] font-semibold shadow-sm transition-all duration-300 hover:border-blue-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 active:scale-95" onclick="document.getElementById('importProtocolosInput').click()" title="Importar chamados em Excel ou JSON">
+                            <i class="ph ph-file-arrow-up text-lg text-blue-600"></i> Importar Excel/JSON
+                        </button>
+                        <button class="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-main)] font-semibold shadow-sm transition-all duration-300 hover:border-green-500 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 active:scale-95" onclick="window.exportarProtocolosExcel()" title="Exportar chamados para Excel">
+                            <i class="ph ph-microsoft-excel-logo text-lg text-green-600"></i> Exportar Excel
+                        </button>
+                        <button class="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-main)] font-semibold shadow-sm transition-all duration-300 hover:border-purple-500 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 active:scale-95" onclick="window.exportarProtocolosJSON()" title="Exportar Backup JSON">
+                            <i class="ph ph-code text-lg text-purple-600"></i> JSON
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-[var(--surface)] p-6 rounded-xl border border-[var(--border)] mb-8 shadow-sm">
+                    <h3 class="text-lg font-bold text-[var(--text-main)] m-0 mb-4 flex items-center gap-2">
+                        <i class="ph ph-plus-circle text-[var(--primary)] text-xl"></i> Novo Registro de Protocolo
+                    </h3>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[0.65rem] font-black text-[var(--text-muted)] uppercase tracking-widest ml-1 opacity-60">Sistema</label>
+                            <select id="protocoloSistema" class="w-full px-4 py-2.5 bg-[var(--bg-color)]/50 border border-[var(--border)] rounded-xl text-[var(--text-main)] transition-all duration-300 focus:border-[var(--primary)] outline-none shadow-sm font-bold">
+                                <option value="Athenas">Athenas</option>
+                                <option value="Degust">Degust</option>
+                                <option value="Delivery's">Delivery's</option>
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[0.65rem] font-black text-[var(--text-muted)] uppercase tracking-widest ml-1 opacity-60">Número / Código</label>
+                            <input type="text" id="protocoloNumero" placeholder="Ex: #123456"
+                                class="w-full px-4 py-2.5 bg-[var(--bg-color)]/50 border border-[var(--border)] rounded-xl text-[var(--text-main)] transition-all duration-300 focus:border-[var(--primary)] outline-none font-bold shadow-sm">
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[0.65rem] font-black text-[var(--text-muted)] uppercase tracking-widest ml-1 opacity-60">Responsável</label>
+                            <select id="protocoloResponsavel" class="w-full px-4 py-2.5 bg-[var(--bg-color)]/50 border border-[var(--border)] rounded-xl text-[var(--text-main)] transition-all duration-300 focus:border-[var(--primary)] outline-none shadow-sm font-bold">
+                                <option value="">Selecione...</option>
+                                <!-- Populado JS -->
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[0.65rem] font-black text-[var(--text-muted)] uppercase tracking-widest ml-1 opacity-60">Prazo SLA</label>
+                            <input type="date" id="protocoloSLA" class="w-full px-4 py-2.5 bg-[var(--bg-color)]/50 border border-[var(--border)] rounded-xl text-[var(--text-main)] transition-all duration-300 focus:border-[var(--primary)] outline-none font-bold shadow-sm">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-1 mb-4">
+                        <label class="text-[0.65rem] font-black text-[var(--text-muted)] uppercase tracking-widest ml-1 opacity-60">Descrição Detalhada</label>
+                        <textarea id="protocoloDescricao" rows="3" placeholder="Explique o motivo do chamado e o que foi solicitado ao suporte..."
+                            class="w-full px-4 py-3 bg-[var(--bg-color)]/50 border border-[var(--border)] rounded-xl text-[var(--text-main)] transition-all duration-300 focus:border-[var(--primary)] outline-none resize-y min-h-[100px] shadow-sm"></textarea>
+                    </div>
+
+                    <div class="flex gap-3">
+                        <button class="flex items-center gap-2 px-6 py-3 rounded-xl bg-[var(--primary)] text-white font-bold shadow-sm transition-all duration-300 hover:shadow-md hover:brightness-110 active:scale-95" onclick="window.salvarProtocolo()">
+                            <i class="ph ph-floppy-disk text-xl"></i> Registrar Protocolo
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-[var(--surface)] p-6 rounded-2xl border border-[var(--border)] mb-6 flex flex-col md:flex-row gap-4 items-center justify-between shadow-sm animate-fadeIn">
+                    <div class="relative w-full md:flex-1 max-w-md">
+                        <i class="ph ph-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-lg"></i>
+                        <input type="text" id="protocoloFilterBusca" placeholder="Buscar por número ou descrição..." 
+                            class="w-full pl-11 pr-4 py-2.5 bg-[var(--bg-color)]/50 border border-[var(--border)] rounded-xl outline-none focus:border-[var(--primary)] transition-all shadow-sm"
+                            oninput="window.renderizarProtocolos()">
+                    </div>
+                    <div class="flex gap-2 flex-wrap w-full md:w-auto">
+                        <select id="protocoloFilterSistema" class="px-4 py-2.5 bg-[var(--bg-color)]/50 border border-[var(--border)] rounded-xl outline-none focus:border-[var(--primary)] text-sm font-bold text-[var(--text-main)] shadow-sm" onchange="window.renderizarProtocolos()">
+                            <option value="todos">Todos Sistemas</option>
+                            <option value="Athenas" selected>Athenas</option>
+                            <option value="Degust">Degust</option>
+                            <option value="Delivery's">Delivery's</option>
+                        </select>
+                        <select id="protocoloFilterStatus" class="px-4 py-2.5 bg-[var(--bg-color)]/50 border border-[var(--border)] rounded-xl outline-none focus:border-[var(--primary)] text-sm font-bold text-[var(--text-main)] shadow-sm" onchange="window.renderizarProtocolos()">
+                            <option value="todos">Todos Status</option>
+                            <option value="Pendente">Pendente</option>
+                            <option value="Resolvido">Resolvido</option>
+                        </select>
+                        <select id="protocoloFilterResponsavel" class="px-4 py-2.5 bg-[var(--bg-color)]/50 border border-[var(--border)] rounded-xl outline-none focus:border-[var(--primary)] text-sm font-bold text-[var(--text-main)] shadow-sm" onchange="window.renderizarProtocolos()">
+                            <option value="todos">Todos Responsáveis</option>
+                        </select>
+                        <button onclick="window.limparFiltrosProtocolos()" class="w-10 h-10 flex items-center justify-center rounded-xl bg-[var(--bg-color)] border border-[var(--border)] text-[var(--text-muted)] hover:text-red-500 hover:border-red-500 transition-all font-bold shadow-sm" title="Limpar Filtros">
+                            <i class="ph ph-trash"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="listaProtocolosContainer" class="flex flex-col gap-4">
+                    <!-- Populado via JS -->
+                </div>
+            </div>
+
+            <div id="view-links" style="display: none;">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                    <div class="flex items-center gap-3">
+                        <h1 class="text-2xl font-bold text-[var(--text-main)] m-0 flex items-center gap-3">
+                            <i class="ph-fill ph-link text-[var(--primary)] text-2xl"></i> Links Úteis
+                        </h1>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <input type="file" id="importLinksInput" accept=".xlsx, .xls, .json" class="hidden" onchange="window.importarLinksArquivo(event)">
+                        <button class="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-main)] font-semibold shadow-sm transition-all duration-300 hover:border-blue-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 active:scale-95" onclick="document.getElementById('importLinksInput').click()" title="Importar links em Excel ou JSON">
+                            <i class="ph ph-file-arrow-up text-lg text-blue-600"></i> Importar Excel/JSON
+                        </button>
+                        <button class="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-main)] font-semibold shadow-sm transition-all duration-300 hover:border-green-500 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 active:scale-95" onclick="window.exportarLinksExcel()" title="Exportar links úteis para Excel">
+                            <i class="ph ph-microsoft-excel-logo text-lg text-green-600"></i> Exportar Excel
+                        </button>
+                        <button class="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-main)] font-semibold shadow-sm transition-all duration-300 hover:border-purple-500 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 active:scale-95" onclick="window.exportarLinksJSON()" title="Exportar Backup JSON">
+                            <i class="ph ph-code text-lg text-purple-600"></i> JSON
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-[var(--surface)] p-6 rounded-xl border border-[var(--border)] mb-8 shadow-sm">
+                    <h3 class="text-lg font-bold text-[var(--text-main)] m-0 mb-4 flex items-center gap-2">
+                        <i class="ph ph-plus-circle text-[var(--primary)] text-xl"></i> Novo Link Útil
+                    </h3>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[0.65rem] font-black text-[var(--text-muted)] uppercase tracking-widest ml-1 opacity-60">Título do Link</label>
+                            <input type="text" id="linkTitulo" placeholder="Ex: Planilha de Escala, Drive Auditoria..."
+                                class="w-full px-4 py-2.5 bg-[var(--bg-color)]/50 border border-[var(--border)] rounded-xl text-[var(--text-main)] transition-all duration-300 focus:border-[var(--primary)] outline-none font-bold shadow-sm">
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[0.65rem] font-black text-[var(--text-muted)] uppercase tracking-widest ml-1 opacity-60">URL / Link</label>
+                            <input type="text" id="linkUrl" placeholder="https://..."
+                                class="w-full px-4 py-2.5 bg-[var(--bg-color)]/50 border border-[var(--border)] rounded-xl text-[var(--text-main)] transition-all duration-300 focus:border-[var(--primary)] outline-none shadow-sm">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-1 mb-4">
+                        <label class="text-[0.65rem] font-black text-[var(--text-muted)] uppercase tracking-widest ml-1 opacity-60">Descrição Curta</label>
+                        <input type="text" id="linkDescricao" placeholder="Para que serve este link?"
+                            class="w-full px-4 py-2.5 bg-[var(--bg-color)]/50 border border-[var(--border)] rounded-xl text-[var(--text-main)] transition-all duration-300 focus:border-[var(--primary)] outline-none shadow-sm">
+                    </div>
+
+                    <div class="flex gap-3">
+                        <button id="btnSalvarLink" class="flex items-center gap-2 px-6 py-3 rounded-xl bg-spLaranja text-white font-bold shadow-sm transition-all duration-300 hover:shadow-md hover:brightness-110 active:scale-95" onclick="window.salvarLink('Auditoria')">
+                            <i class="ph ph-floppy-disk text-xl"></i> Adicionar Link
+                        </button>
+                        <button id="btnCancelarEdicao" class="hidden items-center gap-2 px-6 py-3 rounded-xl bg-[var(--bg-color)] border border-[var(--border)] text-[var(--text-main)] font-bold shadow-sm transition-all duration-300 hover:bg-black/5 active:scale-95" onclick="window.cancelarEdicao()">
+                            <i class="ph ph-x-circle text-xl"></i> Cancelar
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mb-6 animate-fadeIn">
+                    <div class="relative group">
+                        <i class="ph ph-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-xl group-focus-within:text-[var(--primary)] transition-colors"></i>
+                        <input type="text" id="buscaLinks" placeholder="Pesquisar por título ou descrição..." 
+                            class="w-full pl-12 pr-4 py-3.5 bg-[var(--surface)] border border-[var(--border)] rounded-2xl text-[var(--text-main)] transition-all duration-300 focus:border-[var(--primary)] focus:shadow-lg focus:shadow-[var(--primary)]/5 outline-none shadow-sm"
+                            oninput="window.filtrarLinks()">
+                    </div>
+                </div>
+
+                <div id="listaLinksContainer" class="flex flex-col gap-4">
+                    <!-- Populado via JS -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- MODAL EDITAR PROTOCOLO -->
+    <div id="modalEditarProtocolo" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300 [&.show]:opacity-100 [&.show]:pointer-events-auto p-4">
+        <div class="bg-[var(--surface)] w-[600px] max-w-full rounded-2xl shadow-2xl relative translate-y-4 transition-transform duration-300 [&.show_.modal-content-edit-prot]:translate-y-0 overflow-hidden modal-content-edit-prot">
+            <div class="flex justify-between items-center px-6 py-4 border-b border-[var(--border)] bg-black/5 dark:bg-black/20">
+                <h2 class="text-xl font-bold text-[var(--text-main)] m-0">Editar Protocolo</h2>
+                <button class="w-8 h-8 flex items-center justify-center rounded-full text-[var(--text-muted)] hover:bg-black/10 dark:hover:bg-white/10 transition-colors" onclick="window.fecharModalEditarProtocolo()"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="p-6">
+                <input type="hidden" id="editProtocoloId">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div class="flex flex-col gap-1">
+                        <label class="text-[0.65rem] font-bold text-[var(--text-muted)] uppercase tracking-widest ml-1">Sistema</label>
+                        <select id="editProtocoloSistema" class="w-full px-4 py-2.5 bg-[var(--bg-color)]/50 border border-[var(--border)] rounded-xl text-[var(--text-main)] outline-none focus:border-[var(--primary)] font-bold">
+                            <option value="Athenas">Athenas</option>
+                            <option value="Degust">Degust</option>
+                            <option value="Delivery's">Delivery's</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-[0.65rem] font-bold text-[var(--text-muted)] uppercase tracking-widest ml-1">Número / Código</label>
+                        <input type="text" id="editProtocoloNumero" class="w-full px-4 py-2.5 bg-[var(--bg-color)]/50 border border-[var(--border)] rounded-xl text-[var(--text-main)] outline-none focus:border-[var(--primary)] font-bold">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div class="flex flex-col gap-1">
+                        <label class="text-[0.65rem] font-bold text-[var(--text-muted)] uppercase tracking-widest ml-1">Responsável</label>
+                        <select id="editProtocoloResponsavel" class="w-full px-4 py-2.5 bg-[var(--bg-color)]/50 border border-[var(--border)] rounded-xl text-[var(--text-main)] outline-none focus:border-[var(--primary)] font-bold">
+                            <!-- Populado JS -->
+                        </select>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-[0.65rem] font-bold text-[var(--text-muted)] uppercase tracking-widest ml-1">Prazo SLA</label>
+                        <input type="date" id="editProtocoloSLA" class="w-full px-4 py-2.5 bg-[var(--bg-color)]/50 border border-[var(--border)] rounded-xl text-[var(--text-main)] outline-none focus:border-[var(--primary)] font-bold">
+                    </div>
+                </div>
+                <div class="flex flex-col gap-1 mb-6">
+                    <label class="text-[0.65rem] font-bold text-[var(--text-muted)] uppercase tracking-widest ml-1">Descrição</label>
+                    <textarea id="editProtocoloDescricao" rows="4" class="w-full px-4 py-3 bg-[var(--bg-color)]/50 border border-[var(--border)] rounded-xl text-[var(--text-main)] outline-none focus:border-[var(--primary)] resize-none"></textarea>
+                </div>
+                <div class="flex gap-3">
+                    <button class="flex-1 px-6 py-3 rounded-xl bg-[var(--primary)] text-white font-bold shadow-lg shadow-[var(--primary)]/20 hover:brightness-110 active:scale-95 transition-all" onclick="window.confirmarEdicaoProtocolo()">Salvar Alterações</button>
+                    <button class="px-6 py-3 rounded-xl bg-[var(--bg-color)] border border-[var(--border)] text-[var(--text-muted)] font-bold hover:bg-black/5 active:scale-95 transition-all" onclick="window.fecharModalEditarProtocolo()">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL EDITAR PLANEJAMENTO AUDITORIA -->
+    <div id="modalPlanejamentoObj" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300 [&.show]:opacity-100 [&.show]:pointer-events-auto p-4">
+        <div class="bg-[var(--surface)] w-full max-w-[500px] rounded-2xl shadow-2xl relative translate-y-4 transition-transform duration-300 [&.show_.modal-content]:translate-y-0 overflow-hidden modal-content border border-[var(--border)]">
+            <div class="flex justify-between items-center px-6 py-4 border-b border-[var(--border)] bg-black/5 dark:bg-black/20">
+                <div>
+                    <h2 class="m-0 flex items-center gap-2 text-xl font-bold text-[var(--text-main)]">
+                        <i class="ph ph-pencil-simple text-[var(--primary)]"></i> Setup de Auditoria
+                    </h2>
+                    <span id="modalPlanLojaNome" class="text-sm text-[var(--text-muted)] font-medium mt-1 block">Loja X</span>
+                </div>
+                <button class="w-8 h-8 flex items-center justify-center rounded-full text-[var(--text-muted)] hover:bg-black/10 dark:hover:bg-white/10 transition-colors" onclick="window.fecharModalEditPlanejamento()"><i class="ph ph-x"></i></button>
+            </div>
+
+            <input type="hidden" id="modalPlanId" value="">
+
+            <div class="p-6 flex flex-col gap-4">
+                <div>
+                    <label class="block text-sm font-semibold text-[var(--text-muted)] mb-1.5">Data Prevista (Próxima Auditoria)</label>
+                    <input type="date" id="modalPlanDataProx" class="w-full border border-[var(--border)] rounded-xl p-2.5 bg-[var(--bg-color)] text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all duration-300 shadow-sm">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-[var(--text-muted)] mb-1.5">Auditor / Responsável</label>
+                    <select id="modalPlanAuditor" class="w-full border border-[var(--border)] rounded-xl p-2.5 bg-[var(--bg-color)] text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all duration-300 shadow-sm">
+                        <option value="">A Definir</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-[var(--text-muted)] mb-1.5">Anotações Internas do Planejamento</label>
+                    <textarea id="modalPlanNotas" rows="3" placeholder="Restrições de horário, contatos da loja, observações..." class="w-full border border-[var(--border)] rounded-xl p-2.5 bg-[var(--bg-color)] text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all duration-300 shadow-sm resize-none"></textarea>
+                </div>
+
+                <div class="mt-4 flex justify-end gap-2.5">
+                    <button class="px-4 py-2 rounded-xl border border-[var(--border)] bg-transparent text-[var(--text-main)] font-semibold transition-all duration-300 hover:bg-black/5 dark:hover:bg-white/5 active:scale-95" onclick="window.fecharModalEditPlanejamento()">Cancelar</button>
+                    <button class="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--primary)] text-white font-semibold transition-all duration-300 hover:brightness-110 active:scale-95 shadow-sm" onclick="window.salvarPlanejamento()">
+                        <i class="ph ph-check"></i> Salvar Agendamento
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL EDITAR TAREFA AUDITORIA -->
+    <div id="modalEditAudiProj" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300 [&.show]:opacity-100 [&.show]:pointer-events-auto p-4">
+        <div class="bg-[var(--surface)] w-[600px] max-w-full max-h-[90vh] flex flex-col rounded-xl shadow-2xl relative translate-y-4 transition-transform duration-300 [&.show_.modal-content]:translate-y-0 overflow-hidden modal-content border border-[var(--border)]">
+            <div class="flex justify-between items-center px-6 py-4 border-b border-[var(--border)] bg-black/5 dark:bg-black/20 text-[var(--text-main)]">
+                <h2 class="text-xl font-bold m-0 flex items-center gap-2"><i class="ph ph-pencil-simple text-[var(--primary)]"></i> Editar Tarefa</h2>
+                <div class="flex items-center gap-2">
+                    <button id="btnSwitchToEditProj" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-[var(--surface)] border border-[var(--border)] text-[var(--text-main)] hover:border-[var(--primary)] hover:text-[var(--primary)] transition-all" onclick="window.toggleEditModeProj()">
+                        <i class="ph ph-pencil-simple"></i> Editar
+                    </button>
+                    <button class="w-8 h-8 flex items-center justify-center rounded-full text-[var(--text-muted)] hover:bg-black/10 dark:hover:bg-white/10 transition-colors" onclick="window.fecharModalEditAudiProj()"><i class="ph ph-x"></i></button>
+                </div>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto p-6 scroll-smooth custom-scrollbar">
+                <!-- VIEW MODE -->
+                <div id="taskViewMode">
+                    <div class="flex flex-wrap gap-4 mb-6 pb-6 border-b border-[var(--border)]">
+                        <div class="flex flex-col gap-1">
+                            <span class="text-[0.65rem] font-bold text-[var(--text-muted)] uppercase">Demandante</span>
+                            <span id="viewProjDemand" class="text-sm font-semibold text-[var(--text-main)] flex items-center gap-1.5"><i class="ph ph-user"></i> ---</span>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <span class="text-[0.65rem] font-bold text-[var(--text-muted)] uppercase">Prazo</span>
+                            <span id="viewProjDate" class="text-sm font-semibold text-[var(--text-main)] flex items-center gap-1.5"><i class="ph ph-calendar"></i> ---</span>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <span class="text-[0.65rem] font-bold text-[var(--text-muted)] uppercase">Responsável</span>
+                            <span id="viewProjResp" class="text-sm font-semibold text-[var(--text-main)] flex items-center gap-1.5"><i class="ph ph-user-check"></i> ---</span>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <span class="text-[0.65rem] font-bold text-[var(--text-muted)] uppercase">Status</span>
+                            <span id="viewProjStatus" class="inline-flex px-2 py-0.5 rounded-md text-[0.65rem] font-bold border border-[var(--border)] bg-black/5">---</span>
+                        </div>
+                    </div>
+                    <div class="mb-8">
+                        <h3 class="text-sm font-bold text-[var(--text-muted)] uppercase mb-3 ml-1">Título da Tarefa</h3>
+                        <div id="viewProjDesc" class="bg-[var(--bg-color)] p-4 rounded-xl border border-[var(--border)] text-sm text-[var(--text-main)] leading-relaxed whitespace-pre-line mb-4 font-bold"></div>
+                        
+                        <div id="viewProjDetalhesContainer" class="hidden mb-4">
+                            <h3 class="text-sm font-bold text-[var(--text-muted)] uppercase mb-3 ml-1">Descrição Detalhada</h3>
+                            <div id="viewProjDetalhes" class="bg-[var(--bg-color)] p-4 rounded-xl border border-[var(--border)] text-sm text-[var(--text-main)] leading-relaxed whitespace-pre-line"></div>
+                        </div>
+                        
+                        <!-- Checklist View -->
+                        <div id="checklistViewContainer" class="mb-4 hidden">
+                            <h3 class="text-sm font-bold text-[var(--text-muted)] uppercase mb-3 ml-1 flex items-center gap-2">
+                                <i class="ph ph-check-square"></i> Checklist de Sub-tarefas
+                            </h3>
+                            <div id="listaChecklistView" class="space-y-2"></div>
+                        </div>
+
+                        <div id="viewProjAnexo"></div>
+                    </div>
+                    
+                    <div class="mt-8">
+                        <h3 class="text-sm font-bold text-[var(--text-muted)] uppercase mb-4 ml-1 flex items-center gap-2">
+                            <i class="ph ph-chat-centered-text"></i> Comentários e Atualizações
+                        </h3>
+                        <div id="listaComentariosProjDetalhe" class="flex flex-col gap-3 mb-4">
+                            <!-- Populado JS -->
+                        </div>
+                        <div class="flex flex-col gap-2 bg-[var(--surface)] p-3 rounded-2xl border border-[var(--border)] shadow-sm focus-within:border-[var(--primary)] focus-within:shadow-md transition-all">
+                            <textarea id="novoComentarioProjDetalhe" rows="2" placeholder="Digite seu comentário ou atualização..." class="w-full px-2 py-1 bg-transparent text-[var(--text-main)] text-sm resize-none outline-none custom-scrollbar" onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); window.salvarComentarioProjetoDetalhe(); }"></textarea>
+                            <div class="flex justify-between items-center px-1">
+                                <span class="text-[0.65rem] text-[var(--text-muted)] font-medium">Use <kbd class="px-1.5 py-0.5 bg-[var(--bg-color)] border border-[var(--border)] rounded text-[10px]">Shift+Enter</kbd> para pular linha</span>
+                                <div class="flex gap-2 items-center">
+                                    <button id="btnCancelarEditComentarioProj" class="hidden items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--bg-color)] text-[var(--text-muted)] text-xs font-bold border border-[var(--border)] hover:bg-black/5 dark:hover:bg-white/5 transition-all shadow-sm active:scale-95" onclick="window.cancelarEdicaoComentarioProjetoDetalhe()">
+                                        <i class="ph ph-x"></i> Cancelar
+                                    </button>
+                                    <button id="btnSalvarComentarioProjDetalhe" class="flex items-center justify-center gap-2 px-5 py-2 rounded-xl bg-[var(--primary)] text-white text-sm font-bold shadow-md hover:-translate-y-0.5 hover:shadow-lg hover:brightness-110 transition-all active:scale-95" onclick="window.salvarComentarioProjetoDetalhe()">
+                                        <i class="ph ph-paper-plane-right text-lg"></i> <span id="lblSalvarComentarioProj">Enviar</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- EDIT MODE -->
+                <div id="taskEditMode" class="hidden animate-fadeIn">
+                    <input type="hidden" id="editAudiProjId">
+                    <div class="flex flex-col gap-1 mb-4">
+                        <label class="text-[0.7rem] font-bold text-[var(--text-muted)] uppercase ml-1">Título da Tarefa</label>
+                        <input type="text" id="editAudiProjDesc" class="w-full px-4 py-3 bg-[var(--bg-color)] border border-[var(--border)] rounded-lg text-[var(--text-main)] transition-colors focus:border-[var(--primary)] outline-none font-medium">
+                    </div>
+                    <div class="flex flex-col gap-1 mb-4">
+                        <label class="text-[0.7rem] font-bold text-[var(--text-muted)] uppercase ml-1">Descrição Detalhada</label>
+                        <textarea id="editAudiProjDetalhes" rows="3" class="w-full px-4 py-3 bg-[var(--bg-color)] border border-[var(--border)] rounded-lg text-[var(--text-main)] transition-colors focus:border-[var(--primary)] outline-none resize-y min-h-[80px]"></textarea>
+                    </div>
+
+                    <!-- Checklist Editor -->
+                    <div class="mb-5 p-4 bg-black/5 dark:bg-white/5 rounded-xl border border-[var(--border)]">
+                        <label class="text-[0.7rem] font-bold text-[var(--text-muted)] uppercase ml-1 mb-3 block">Checklist de Passos</label>
+                        <div class="flex gap-2 mb-3">
+                            <input type="text" id="novoItemChecklist" placeholder="Adicionar passo..." class="flex-1 px-3 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-sm outline-none focus:border-[var(--primary)]">
+                            <button class="px-3 py-1.5 bg-[var(--primary)] text-white rounded-lg text-sm font-bold" onclick="window.adicionarItemChecklistAudi()">Add</button>
+                        </div>
+                        <div id="listaChecklistEdit" class="space-y-2 max-h-40 overflow-y-auto pr-1 custom-scrollbar"></div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[0.7rem] font-bold text-[var(--text-muted)] uppercase ml-1">Demandante</label>
+                            <input type="text" id="editAudiProjDemand" class="w-full px-4 py-2 bg-[var(--bg-color)] border border-[var(--border)] rounded-lg text-[var(--text-main)] transition-colors focus:border-[var(--primary)] outline-none">
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[0.7rem] font-bold text-[var(--text-muted)] uppercase ml-1">Prazo</label>
+                            <input type="date" id="editAudiProjDate" class="w-full px-4 py-2 bg-[var(--bg-color)] border border-[var(--border)] rounded-lg text-[var(--text-main)] transition-colors focus:border-[var(--primary)] outline-none">
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[0.7rem] font-bold text-[var(--text-muted)] uppercase ml-1">Responsáveis</label>
+                            <div id="selectedResponsaveisEdit" class="flex flex-wrap gap-1 mt-1 mb-2"></div>
+                            <select id="editAudiProjMember" class="w-full px-3 py-2 border border-[var(--border)] bg-[var(--bg-color)] text-[var(--text-main)] rounded-lg outline-none transition-colors focus:border-[var(--primary)] text-sm" onchange="window.adicionarResponsavelEditAudi(this.value); this.value='';">
+                                <option value="">+ Adicionar...</option>
+                                <!-- Populado JS -->
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[0.7rem] font-bold text-[var(--text-muted)] uppercase ml-1">Status</label>
+                            <select id="editAudiProjStatus" class="w-full px-3 py-2 border border-[var(--border)] bg-[var(--bg-color)] text-[var(--text-main)] rounded-lg outline-none transition-colors focus:border-[var(--primary)] text-sm">
+                                <option value="Pendente">Pendente</option>
+                                <option value="Em Andamento">Em Andamento</option>
+                                <option value="Concluído">Concluído</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex gap-3">
+                        <button class="flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-[var(--primary)] text-white border border-[var(--primary)] font-bold shadow-md transition-all hover:brightness-110" onclick="window.confirmarEdicaoAudiProj()">
+                            Salvar Alterações
+                        </button>
+                        <button class="px-5 py-3 rounded-lg bg-[var(--surface)] text-[var(--text-muted)] border border-[var(--border)] font-semibold transition-all hover:bg-black/5 dark:hover:bg-white/5" onclick="window.toggleEditModeProj()">
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalAudiEquipe" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300 [&.show]:opacity-100 [&.show]:pointer-events-auto p-4">
+        <div class="bg-[var(--surface)] w-[400px] max-w-full rounded-2xl shadow-2xl relative translate-y-4 transition-transform duration-300 [&.show_.modal-content]:translate-y-0 overflow-hidden modal-content border border-[var(--border)]">
+            <div class="flex justify-between items-center px-6 py-4 border-b border-[var(--border)] bg-black/5 dark:bg-black/20 text-[var(--text-main)]">
+                <h2 class="text-xl font-bold m-0 flex items-center gap-2"><i class="ph ph-users-three text-[var(--primary)]"></i> Gerenciar Equipe</h2>
+                <button class="w-8 h-8 flex items-center justify-center rounded-full text-[var(--text-muted)] hover:bg-black/10 dark:hover:bg-white/10 transition-colors" onclick="window.fecharModalAudiEquipe()"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="p-6">
+                <div class="flex flex-col gap-1.5 mb-6">
+                    <label class="text-[0.65rem] font-bold text-[var(--text-muted)] uppercase ml-1 opacity-60">Adicionar novo integrante</label>
+                    <div class="flex gap-2">
+                        <select id="novoAudiMembroSelecionado" class="flex-1 border border-[var(--border)] rounded-xl p-2.5 bg-[var(--bg-color)] text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all duration-300 shadow-sm text-sm">
+                            <option value="">Selecione um usuário...</option>
+                        </select>
+                        <button class="flex items-center justify-center gap-2 px-6 py-2 rounded-xl bg-[var(--primary)] text-white font-bold transition-all duration-300 hover:brightness-110 active:scale-95 shadow-sm" onclick="window.adicionarAudiMembro()">
+                            <i class="ph ph-plus-circle"></i> Add
+                        </button>
+                    </div>
+                </div>
+                <div class="text-[0.65rem] font-bold text-[var(--text-muted)] uppercase mb-3 ml-1 opacity-60 flex justify-between items-center">
+                    <span>Equipe Atual</span>
+                    <div class="flex gap-2">
+                        <input type="file" id="importEquipeInput" accept=".xlsx, .xls, .json" class="hidden" onchange="window.importarEquipeArquivo(event)">
+                        <button onclick="document.getElementById('importEquipeInput').click()" class="text-blue-500 text-[10px] font-bold hover:underline" title="Importar lista de membros">Importar</button>
+                        <button onclick="window.exportarEquipeJSON()" class="text-purple-500 text-[10px] font-bold hover:underline" title="Exportar lista de membros">Exportar JSON</button>
+                    </div>
+                </div>
+                <div id="listaAudiEquipeGerenciar" class="flex flex-col gap-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                    <!-- JS monta a lista -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL EDITAR NOTA AUDITORIA ONLINE -->
+    <div id="modalEditNota" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300 [&.show]:opacity-100 [&.show]:pointer-events-auto p-4">
+        <div class="bg-[var(--surface)] w-full max-w-[450px] rounded-2xl shadow-2xl relative translate-y-4 transition-transform duration-300 [&.show_.modal-content]:translate-y-0 overflow-hidden modal-content border border-[var(--border)]">
+            <div class="flex justify-between items-center px-6 py-4 border-b border-[var(--border)] bg-black/5 dark:bg-black/20">
+                <h2 class="text-xl font-bold text-[var(--text-main)] m-0">Editar Avaliação</h2>
+                <button class="w-8 h-8 flex items-center justify-center rounded-full text-[var(--text-muted)] hover:bg-black/10 dark:hover:bg-white/10 transition-colors" onclick="window.fecharModalEditNota()"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="p-6 flex flex-col gap-4">
+                <input type="hidden" id="editNotaId">
+                <div>
+                    <label class="block text-sm font-semibold text-[var(--text-muted)] mb-1.5">Loja</label>
+                    <select id="editNotaLoja" class="w-full border border-[var(--border)] rounded-xl p-2.5 bg-[var(--bg-color)] text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all duration-300 shadow-sm"></select>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-[var(--text-muted)] mb-1.5">Data</label>
+                    <input type="date" id="editNotaData" class="w-full border border-[var(--border)] rounded-xl p-2.5 bg-[var(--bg-color)] text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all duration-300 shadow-sm">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-[var(--text-muted)] mb-1.5">Nota (0 a 10)</label>
+                    <input type="number" id="editNotaValor" min="0" max="10" step="0.1" class="w-full border border-[var(--border)] rounded-xl p-2.5 bg-[var(--bg-color)] text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all duration-300 shadow-sm">
+                </div>
+                <div class="mt-4 flex justify-end gap-2.5">
+                    <button class="px-4 py-2 rounded-xl border border-[var(--border)] bg-transparent text-[var(--text-main)] font-semibold transition-all duration-300 hover:bg-black/5 dark:hover:bg-white/5 active:scale-95" onclick="window.fecharModalEditNota()">Cancelar</button>
+                    <button class="flex items-center gap-2 px-6 py-2 rounded-xl bg-[var(--primary)] text-white font-semibold transition-all duration-300 hover:brightness-110 active:scale-95 shadow-sm" onclick="window.salvarEdicaoNota()">
+                        <i class="ph ph-check"></i> Salvar Alterações
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL PROGRESSO DE IMPORTAÇÃO -->
+    <div id="modalImportProgresso" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300 [&.show]:opacity-100 [&.show]:pointer-events-auto p-4">
+        <div class="bg-[var(--surface)] w-full max-w-[550px] rounded-2xl shadow-2xl relative translate-y-4 transition-transform duration-300 [&.show_.modal-content]:translate-y-0 overflow-hidden modal-content border border-[var(--border)]">
+            <div class="flex justify-between items-center px-6 py-4 border-b border-[var(--border)] bg-black/5 dark:bg-black/20">
+                <h2 class="text-xl font-bold text-[var(--text-main)] m-0 flex items-center gap-2">
+                    <i class="ph ph-upload-simple text-[var(--primary)]"></i> Importando Dados...
+                </h2>
+                <button id="btnFecharImport" class="hidden w-8 h-8 items-center justify-center rounded-full text-[var(--text-muted)] hover:bg-black/10 dark:hover:bg-white/10 transition-colors" onclick="window.fecharModalImportProgresso()"><i class="ph ph-x"></i></button>
+            </div>
+            
+            <div class="p-6">
+                <!-- Barra de Progresso -->
+                <div class="mb-4">
+                    <div class="flex justify-between text-xs font-bold text-[var(--text-muted)] uppercase mb-2">
+                        <span id="importProgressStatus">Iniciando...</span>
+                        <span id="importProgressPercent">0%</span>
+                    </div>
+                    <div class="w-full bg-black/5 dark:bg-white/5 h-3 rounded-full overflow-hidden">
+                        <div id="importProgressBar" class="h-full bg-[var(--primary)] transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- Log de Atividades -->
+                <div class="bg-black/5 dark:bg-white/5 rounded-lg p-3 h-64 overflow-y-auto font-mono text-xs flex flex-col gap-1 border border-[var(--border)]" id="importLog">
+                    <div class="text-[var(--text-muted)] italic">Aguardando início...</div>
+                </div>
+
+                <div class="mt-5 flex justify-end gap-3">
+                    <button id="btnInterromperImport" class="hidden px-6 py-2 rounded-xl bg-red-50 text-red-600 font-semibold transition-all duration-300 hover:bg-red-100 border border-red-200 active:scale-95" onclick="window.interromperImportacao()">
+                        <i class="ph ph-stop-circle text-lg"></i> Interromper
+                    </button>
+                    <button id="btnConcluirImport" class="hidden px-6 py-2 rounded-xl bg-[var(--primary)] text-white font-semibold transition-all duration-300 hover:brightness-110 active:scale-95 shadow-sm" onclick="window.fecharModalImportProgresso()">Concluir</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL REMAPEAMENTO DE IMPORTAÇÃO -->
+    <div id="modalImportRemapear" class="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300 [&.show]:opacity-100 [&.show]:pointer-events-auto p-4">
+        <div class="bg-[var(--surface)] w-full max-w-[700px] rounded-2xl shadow-2xl relative translate-y-4 transition-transform duration-300 [&.show_.modal-content]:translate-y-0 overflow-hidden modal-content border border-[var(--border)] flex flex-col max-h-[90vh]">
+            <div class="flex justify-between items-center px-6 py-4 border-b border-[var(--border)] bg-black/5 dark:bg-black/20">
+                <div>
+                    <h2 class="text-xl font-bold text-[var(--text-main)] m-0 flex items-center gap-2">
+                        <i class="ph ph-arrows-merge text-[var(--sp-laranja)]"></i> Resolver Divergências
+                    </h2>
+                    <p class="text-xs text-[var(--text-muted)] mt-1">Os nomes abaixo não foram reconhecidos. Vincule-os para concluir a importação.</p>
+                </div>
+                <button class="w-8 h-8 flex items-center justify-center rounded-full text-[var(--text-muted)] hover:bg-black/10 dark:hover:bg-white/10 transition-colors" onclick="window.fecharModalRemapear()"><i class="ph ph-x"></i></button>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto p-6 scroll-smooth custom-scrollbar">
+                <div id="remappingContainer" class="flex flex-col gap-6">
+                    <!-- Gerado via JS -->
+                </div>
+            </div>
+
+            <div class="p-6 border-t border-[var(--border)] bg-black/5 dark:bg-black/20 flex justify-between items-center">
+                <span id="remappingStats" class="text-xs font-bold text-[var(--text-muted)] uppercase">0 itens pendentes</span>
+                <div class="flex gap-3">
+                    <button class="px-6 py-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-main)] font-semibold transition-all duration-300 hover:bg-black/5 active:scale-95" onclick="window.fecharModalRemapear()">Ignorar Pendentes</button>
+                    <button id="btnProcessarRemapeamento" class="px-6 py-2 rounded-xl bg-[var(--primary)] text-white font-semibold transition-all duration-300 hover:brightness-110 active:scale-95 shadow-sm" onclick="window.processarMapeamentoManual()">
+                        Salvar e Concluir
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="modalCommentsProtocolo" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300 [&.show]:opacity-100 [&.show]:pointer-events-auto p-4">
+        <div class="bg-[var(--surface)] w-[500px] max-w-full rounded-2xl shadow-2xl relative translate-y-4 transition-transform duration-300 [&.show_.modal-content]:translate-y-0 overflow-hidden modal-content border border-[var(--border)]">
+            <div class="flex justify-between items-center px-6 py-4 border-b border-[var(--border)] bg-black/5 dark:bg-black/20">
+                <div>
+                    <h2 class="text-xl font-bold text-[var(--text-main)] m-0">Comentários do Protocolo</h2>
+                    <p id="commentProtocoloInfo" class="text-xs text-[var(--text-muted)] m-0 mt-1"></p>
+                </div>
+                <button class="w-8 h-8 flex items-center justify-center rounded-full text-[var(--text-muted)] hover:bg-black/10 dark:hover:bg-white/10 transition-colors" onclick="window.fecharModalCommentsProtocolo()"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="p-6">
+                <div id="commentProtocoloDesc" class="text-sm text-[var(--text-main)] bg-[var(--bg-color)] p-4 rounded-xl border border-[var(--border)] mb-6 max-h-[100px] overflow-y-auto whitespace-pre-line italic opacity-80 custom-scrollbar"></div>
+                
+                <div class="flex flex-col gap-1.5 mb-2">
+                    <label class="text-[0.65rem] font-bold text-[var(--text-muted)] uppercase ml-1 opacity-60">Histórico de Comentários</label>
+                    <div id="listaComentariosProtocolo" class="max-h-[300px] overflow-y-auto pr-2 custom-scrollbar flex flex-col gap-4 py-2">
+                        <!-- Items via JS -->
+                    </div>
+                </div>
+
+                <div class="mt-6 pt-6 border-t border-[var(--border)]">
+                    <input type="hidden" id="commentProtocoloId">
+                    <div class="flex gap-2">
+                        <input type="text" id="novoComentarioProtocolo" placeholder="Escreva um comentário..." class="flex-1 px-4 py-2.5 bg-[var(--bg-color)]/50 border border-[var(--border)] rounded-xl outline-none focus:border-[var(--primary)] transition-all text-sm">
+                        <button onclick="window.salvarComentarioProtocolo()" class="w-12 h-12 flex items-center justify-center bg-[var(--primary)] text-white rounded-xl font-bold shadow-lg shadow-[var(--primary)]/20 hover:brightness-110 active:scale-95 transition-all">
+                            <i class="ph ph-paper-plane-right text-xl"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script src="../../js/firebase-config.js"></script>
+    <script src="../../js/firebase-init.js"></script>
+    <script>window.__LOGIN_URL = '../../index.html';</script>
+    <script src="../../js/auth-guard.js"></script>
+    <script src="../../js/data.js"></script>
+    
+    <!-- Services & UI Shared components -->
+    <script src="../../js/services/CoreUI.js"></script>
+    <script src="../../js/components/organisms/DynamicSidebar.js"></script>
+    <script src="../../js/services/NotificationService.js"></script>
+    <script src="../../js/controllers/ProfileController.js"></script>
+
+    <!-- Global Controllers (Shared) -->
+    <script src="../../js/logic/ProtocolosLogic.js"></script>
+    <script src="../../js/controllers/ProtocolosController.js"></script>
+
+    <!-- Sector Specific Controllers -->
+    <script src="js/controllers/AppController.js"></script>
+    <script src="js/logic/MapeamentoLogic.js"></script>
+    <script src="js/services/MapeamentoService.js"></script>
+    <script src="js/controllers/MapeamentoController.js"></script>
+    <script src="js/controllers/AuditoriaOnlineController.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="js/controllers/ExportController.js"></script>
+    <script src="js/controllers/DashboardController.js"></script>
+    <script src="js/controllers/PlanejamentoController.js"></script>
+    <script src="js/controllers/TarefasController.js"></script>
+    <script src="js/controllers/ChartCMVController.js"></script>
+    <script src="../../js/controllers/LinksController.js"></script>
+    <script src="js/app.js"></script>
+</body>
+
+</html>

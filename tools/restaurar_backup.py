@@ -192,12 +192,24 @@ def main():
     print("  auditoria_mapeamento:   %d" % len(vivo_map))
     print("  auditoria_planejamento: %d" % len(vivo_plan))
 
-    # identidade de uma auditoria: (loja, data)
-    por_loja_data = {}
+    # Identidade de uma auditoria: (loja, data, nTentativa).
+    #
+    # Comecei com (loja, data) e estava ERRADO: o backup tem 25 pares
+    # loja+data com mais de um registro, e sao TENTATIVAS distintas do mesmo
+    # dia - "ligou as 14:45, nao atenderam; ligou as 15:31, conseguiu". Com a
+    # chave curta, 26 registros seriam colapsados e o historico de tentativas
+    # se perderia.
+    por_chave = {}
     for did, d in vivo_map.items():
-        por_loja_data.setdefault((chave(d.get("lojaNome", "")), d.get("data", "")), []).append((did, d))
+        k3 = (chave(d.get("lojaNome", "")), d.get("data", ""), d.get("nTentativa"))
+        por_chave.setdefault(k3, []).append((did, d))
 
-    criar, atualizar, iguais, semtraducao = [], [], 0, []
+    # Documentos vivos ja reivindicados nesta execucao: impede que dois
+    # registros do backup gravem por cima do mesmo documento.
+    reivindicados = set()
+
+    criar, atualizar, iguais, semtraducao, ambiguos = [], [], 0, [], []
+    vistos = set()   # chaves (loja, data, tentativa) ja emitidas nesta execucao
 
     for r in backup["auditoria_mapeamento"]:
         lid = str(r.get("lojaId"))
@@ -222,9 +234,15 @@ def main():
             if r.get(e) not in (None, "", False):
                 campos[e] = r[e]
 
-        gemeos = por_loja_data.get((chave(loja), data), [])
+        tentativa = r.get("nTentativa") or 1
+        k3 = (chave(loja), data, tentativa)
+
+        # so considera documentos vivos que nenhum outro registro ja reivindicou
+        gemeos = [g for g in por_chave.get(k3, []) if g[0] not in reivindicados]
+
         if gemeos:
             did, antes = gemeos[0]
+            reivindicados.add(did)
             # vazio nunca sobrescreve conteudo existente
             campos = {c: v for c, v in campos.items()
                       if not (v in ("", None) and antes.get(c) not in (None, ""))}
@@ -234,7 +252,14 @@ def main():
                 continue
             atualizar.append((did, loja, data, campos, sorted(difs)))
         else:
-            did = r.get("id") or ("MAP_%s_%s" % (data.replace("-", ""), chave(loja)[:28]))
+            # Sem documento vivo livre para esta chave. Se o backup ja trouxe
+            # outro registro com a MESMA chave, sao duplicatas da origem
+            # (mesma loja, dia e tentativa): preservo as duas sob ids
+            # proprios e sinalizo, em vez de escolher uma por conta propria.
+            if k3 in vistos:
+                ambiguos.append((loja, data, tentativa))
+            vistos.add(k3)
+            did = r.get("id") or ("MAP_%s_%s_T%s" % (data.replace("-", ""), chave(loja)[:24], tentativa))
             campos["id"] = did
             criar.append((did, loja, data, campos))
 
@@ -285,6 +310,13 @@ def main():
 
     if semtraducao:
         print("\nSEM TRADUCAO de lojaId (registros ignorados): %s" % sorted(set(semtraducao)))
+
+    if ambiguos:
+        print("\nDUPLICATAS NA ORIGEM (%d) - mesma loja, dia e numero de tentativa." % len(ambiguos))
+        print("Preservadas as duas versoes, cada uma com seu id de origem.")
+        print("Revise depois no sistema e apague a sobrando, se for o caso:")
+        for loja, data, t in ambiguos:
+            print("  %s  %-32s tentativa %s" % (data, loja[:32], t))
 
     print("\nNAO restaurado de proposito:")
     print("  proximaPrevista do backup: e de agosto e regrediria o planejamento")

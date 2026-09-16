@@ -250,6 +250,45 @@ def main():
     print("  auditoria_planejamento: %d registros" % len(plan))
     print("  auditoria_mapeamento:   %d registros" % len(mapa))
 
+    # ---- diagnostico do que ja existe -----------------------------------
+    print("\n" + "-" * 74)
+    print("O QUE JA EXISTE NO BANCO")
+    print("-" * 74)
+
+    if plan:
+        print("\nRegistros de planejamento (%d):" % len(plan))
+        for did, d in list(plan.items())[:5]:
+            print("  %s -> %s" % (did, json.dumps(d, ensure_ascii=False)[:150]))
+
+    if mapa:
+        datas = sorted(d.get("data", "") for d in mapa.values() if d.get("data"))
+        auditores = {}
+        lojas_mapa = set()
+        for d in mapa.values():
+            auditores[d.get("auditor") or "(vazio)"] = auditores.get(d.get("auditor") or "(vazio)", 0) + 1
+            if d.get("lojaNome"):
+                lojas_mapa.add(chave(d["lojaNome"]))
+        print("\nEventos de mapeamento (%d):" % len(mapa))
+        if datas:
+            print("  periodo: %s ate %s" % (datas[0], datas[-1]))
+        print("  lojas distintas: %d" % len(lojas_mapa))
+        print("  por auditor: %s" % json.dumps(auditores, ensure_ascii=False))
+        campos = sorted({k for d in mapa.values() for k in d.keys()})
+        print("  campos usados: %s" % ", ".join(campos))
+        alvo_set = {chave(l) for l, _, s, _ in CONSOLIDADO if s != "PENDENTE"}
+        print("  dos %d eventos que vou gravar, ja existem %d lojas em comum"
+              % (len(alvo_set), len(alvo_set & lojas_mapa)))
+
+    # ---- cadastro oficial: define lojaId e o id PLAN_<n> -----------------
+    caminho_mestre = os.path.join(RAIZ, "data", "lojas_ka_official.json")
+    if not os.path.exists(caminho_mestre):
+        sys.exit("Nao achei data/lojas_ka_official.json, necessario para criar "
+                 "registros de planejamento novos.")
+    mestre = json.load(io.open(caminho_mestre, encoding="utf-8"))
+    # lojaId e a posicao no cadastro + 1, e o documento e PLAN_<lojaId>.
+    # E a convencao que os registros existentes ja usam.
+    por_nome_mestre = {chave(x["nome"]): (str(i + 1), x) for i, x in enumerate(mestre)}
+
     # indice do planejamento por nome normalizado de loja
     por_loja = {}
     for did, d in plan.items():
@@ -257,15 +296,36 @@ def main():
         if k:
             por_loja[k] = (did, d)
 
-    eventos, agendamentos, avisos = [], [], []
+    eventos, agendamentos, criacoes, avisos = [], [], [], []
 
     for loja, data_iso, status, auditor in CONSOLIDADO:
         k = chave(loja)
         alvo = por_loja.get(k)
+
         if not alvo:
-            avisos.append("sem registro de planejamento para '%s' - linha ignorada" % loja)
-            continue
-        did, atual = alvo
+            # Nao existe registro de planejamento para esta loja: cria a partir
+            # do cadastro oficial, com os mesmos campos dos registros atuais.
+            if k not in por_nome_mestre:
+                avisos.append("'%s' nao esta no cadastro oficial - linha ignorada" % loja)
+                continue
+            loja_id, reg = por_nome_mestre[k]
+            novo = {
+                "id": "PLAN_%s" % loja_id,
+                "lojaId": loja_id,
+                "lojaNome": reg["nome"],
+                "nomeBi": reg.get("nomeBi", ""),
+                "regional": reg.get("regional", ""),
+                "uf": reg.get("uf", ""),
+                "ultimaData": data_iso if status == "REALIZADA" else "",
+                "proximaPrevista": data_iso if status != "REALIZADA" else "",
+                "auditor": auditor,
+                "status": "CONCLUIDA" if status == "REALIZADA" else "PENDENTE",
+            }
+            criacoes.append(("PLAN_%s" % loja_id, loja, novo))
+            # segue para gerar o evento de mapeamento, se houver
+            atual, did = novo, "PLAN_%s" % loja_id
+        else:
+            did, atual = alvo
 
         if status in ("REALIZADA", "NAO REALIZADA"):
             realizada = "SIM" if status == "REALIZADA" else "NÃO"
@@ -294,8 +354,17 @@ def main():
                                      "proximaPrevista %s -> %s | auditor: %s" % (
                                          atual.get("proximaPrevista") or "vazio", data_iso, auditor)))
 
-    print("\n" + "-" * 74)
-    print("EVENTOS em auditoria_mapeamento: %d" % len(eventos))
+    print("\n" + "=" * 74)
+    print("O QUE SERA GRAVADO")
+    print("=" * 74)
+
+    print("\nREGISTROS NOVOS em auditoria_planejamento: %d" % len(criacoes))
+    for did, loja, novo in criacoes:
+        print("  %-10s %-32s ultima=%-10s proxima=%-10s %s" % (
+            did, loja[:32], novo["ultimaData"] or "-",
+            novo["proximaPrevista"] or "-", novo["auditor"]))
+
+    print("\nEVENTOS em auditoria_mapeamento: %d" % len(eventos))
     for ev_id, c, acao in eventos:
         print("  [%-8s] %-32s %s  realizada=%-4s %s" % (
             acao, c["lojaNome"][:32], c["data"], c["realizada"],
@@ -329,6 +398,13 @@ def main():
 
     print("\nGravando...")
     erros = 0
+    for did, loja, novo in criacoes:
+        try:
+            gravar("auditoria_planejamento", did, novo, token)
+            print("  ok  planejamento/%s criado (%s)" % (did, loja))
+        except Exception as e:
+            erros += 1
+            print("  ERRO %s" % e)
     for ev_id, campos, _ in eventos:
         try:
             gravar("auditoria_mapeamento", ev_id, campos, token)
@@ -344,7 +420,8 @@ def main():
             erros += 1
             print("  ERRO %s" % e)
 
-    print("\nConcluido. %d escritas, %d erros." % (len(eventos) + len(agendamentos), erros))
+    total = len(criacoes) + len(eventos) + len(agendamentos)
+    print("\nConcluido. %d escritas, %d erros." % (total, erros))
     if erros:
         print("Houve erros. O backup em %s tem o estado anterior." % destino)
 

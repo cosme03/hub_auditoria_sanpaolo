@@ -1,17 +1,22 @@
 rules_version = '2';
 
 // ============================================================================
-//  Hub Auditoria San Paolo - projeto: san-paolo-auditoria
+//  Hub Auditoria San Paolo — projeto: san-paolo-auditoria
 //
-//  PREMISSA OBRIGATORIA: o app usa Firebase Authentication (E-mail/Senha) e o
-//  perfil de cada pessoa vive em users/{uid}, com {uid} == request.auth.uid.
-//  Publicar estas regras ANTES da migracao do login derruba o app inteiro.
+//  Cobre exatamente as 4 colecoes que o app usa:
+//    tarefas_equipe, auditoria_planejamento, auditoria_mapeamento, users
 //
-//  POR QUE NAO BASTA "request.auth != null": no Firebase Auth padrao (nao
-//  Identity Platform) NAO existe como desabilitar o auto-cadastro mantendo o
+//  PREMISSA: o app autentica por Firebase Authentication (e-mail/senha) e o
+//  perfil de cada pessoa vive em users/{uid}, com o ID DO DOCUMENTO igual ao
+//  uid do Auth. Publicar isto antes de o login novo estar no ar derruba o
+//  sistema inteiro, comecando pela leitura do proprio perfil.
+//
+//  POR QUE NAO BASTA "request.auth != null":
+//  no Firebase Auth padrao nao ha como desligar o auto-cadastro mantendo o
 //  login por e-mail/senha, e a apiKey Web e publica no bundle. Qualquer pessoa
-//  na internet cria uma conta valida. O portao real e exists(users/{uid})
-//  com ativo == true.
+//  na internet cria uma conta valida neste projeto. O portao real e
+//  exists(users/{uid}) com ativo == true — ou seja, alguem precisa ter
+//  liberado aquela conta.
 // ============================================================================
 
 service cloud.firestore {
@@ -35,37 +40,37 @@ service cloud.firestore {
     }
 
     // Senha em texto puro nunca mais entra no Firestore.
-    // Em UPDATE usamos diff(): request.resource.data e o documento RESULTANTE
-    // completo, entao um keys().hasAny() travaria para sempre qualquer doc
-    // que ainda carregue o campo legado 'pass'.
+    // Em update comparamos o DIFF: request.resource.data e o documento
+    // resultante inteiro, entao um keys().hasAny() travaria para sempre
+    // qualquer documento que ainda carregue um campo legado.
     function naoGravaSenha() {
       return !request.resource.data.diff(resource.data)
                 .affectedKeys().hasAny(['pass', 'senha', 'password']);
     }
 
-    // O dono nunca edita a propria autorizacao.
+    // O dono do perfil nunca edita a propria autorizacao.
     function naoTocaCamposDeAdmin() {
       return !request.resource.data.diff(resource.data)
                 .affectedKeys()
-                .hasAny(['role', 'setores_permitidos', 'ativo', 'email', 'displayName']);
+                .hasAny(['role', 'ativo', 'email', 'displayName']);
     }
 
     // ------------------------- users/{uid} ---------------------------------
-    // O id do documento DEVE ser o uid do Auth.
+    // O id do documento DEVE ser o uid do Auth: as regras resolvem o perfil
+    // por caminho literal, e nao por consulta.
     match /users/{uid} {
 
-      // get exige apenas request.auth != null (nao ativo()): o auth-guard
-      // precisa ler o proprio doc ANTES de saber se esta ativo. Se o doc nao
-      // existir, o get devolve "nao encontrado", nao permission-denied.
+      // get exige apenas estar autenticado, nao ativo(): o guarda de sessao
+      // precisa ler o proprio documento ANTES de saber se esta ativo.
       allow get: if request.auth != null && (request.auth.uid == uid || isSuper());
 
-      // Listar a colecao inteira: so a tela Gerenciar Usuarios.
+      // Listar a colecao inteira: so a tela de gestao de usuarios.
       allow list: if isSuper();
 
       allow create: if isSuper()
                     && !request.resource.data.keys().hasAny(['pass', 'senha', 'password'])
                     && request.resource.data.keys()
-                         .hasAll(['displayName', 'email', 'role', 'setores_permitidos', 'ativo']);
+                         .hasAll(['displayName', 'email', 'role', 'ativo']);
 
       allow update: if (isSuper() && naoGravaSenha())
                     || (ativo()
@@ -74,76 +79,23 @@ service cloud.firestore {
                         && naoTocaCamposDeAdmin());
 
       // Preferir desativar (ativo:false) a excluir: apagar a conta do Auth
-      // exige Admin SDK. Nunca a propria conta, para nao ficar sem admin.
+      // exige Admin SDK, e remover so o perfil deixa a conta orfa. Nunca a
+      // propria conta, para nao ficar sem administrador.
       allow delete: if isSuper() && request.auth.uid != uid;
     }
 
-    // ------------------- Dados operacionais do setor -----------------------
-    // Nao ha dono por registro: todo auditor ativo le e escreve.
-    // Mantido assim de proposito, para nao mudar o comportamento atual.
+    // ------------------- Dados operacionais da auditoria --------------------
+    // Nao ha dono por registro: todo auditor ativo le e escreve. Mantido assim
+    // de proposito, para nao mudar o comportamento atual do sistema.
 
     match /auditoria_planejamento/{docId} { allow read, write: if ativo(); }
-
-    // NOME CANONICO. MapeamentoService.js precisa ser renomeado para este
-    // nome; NAO criar regra para 'mapeamento_auditoria' - sem regra, qualquer
-    // ocorrencia esquecida falha ruidosamente em vez de gravar dado invisivel.
     match /auditoria_mapeamento/{docId}   { allow read, write: if ativo(); }
+    match /tarefas_equipe/{docId}         { allow read, write: if ativo(); }
 
-    match /auditoria_projetos/{docId}     { allow read, write: if ativo(); }
-    match /auditoria_notas/{docId}        { allow read, write: if ativo(); }
-    match /protocolos_suporte/{docId}     { allow read, write: if ativo(); }
-
-    // Escrita liberada a qualquer ativo de proposito: TarefasController.js:809
-    // e :815 sao o fluxo NORMAL de qualquer auditor, e ExportController.js:1051
-    // restaura a equipe com catch VAZIO - sob deny a restauracao falharia em
-    // silencio absoluto com a barra de progresso dizendo sucesso.
-    match /auditoria_equipe/{docId}       { allow read, write: if ativo(); }
-
-    // ---------------------------- notifications ----------------------------
-    // O cliente consulta where('user','==',window.currentUser), e o auth-guard
-    // define window.currentUser = perfil.displayName. A regra so funciona
-    // porque a query carrega exatamente esse where: o Firestore compara a
-    // EXPRESSAO DA REGRA com as RESTRICOES DA QUERY e nega a query inteira se
-    // nao houver garantia - nao inspeciona documentos retornados.
-    // SE O SINO NAO CARREGAR, trocar as duas primeiras linhas por
-    //   allow read: if ativo();
-    // e registrar como divida tecnica.
-    match /notifications/{notifId} {
-      allow get, list: if ativo()
-                       && (resource.data.user == perfil().displayName || isSuper());
-
-      allow create: if ativo()
-                    && request.resource.data.keys()
-                         .hasOnly(['user', 'message', 'link', 'read', 'createdAt'])
-                    && request.resource.data.user is string
-                    && request.resource.data.message is string
-                    && request.resource.data.read == false;
-
-      allow update: if ativo()
-                    && resource.data.user == perfil().displayName
-                    && request.resource.data.diff(resource.data)
-                         .affectedKeys().hasOnly(['read']);
-
-      allow delete: if isSuper();
-    }
-
-    // --------------------------- links_<Setor> -----------------------------
-    // Nome dinamico montado em LinksController.js:14,48,58,150 como
-    // "links_" + sectorId. Hoje so existe links_Auditoria, mas o padrao
-    // precisa ser coberto. O regex ancorado e a unica coisa que impede este
-    // curinga de liberar a base inteira - nunca relaxar.
-    // Efeito colateral aceito: um usuario ativo pode materializar colecoes
-    // links_<qualquercoisa>.
-    match /{colecao}/{docId} {
-      allow read, write: if ativo()
-                         && colecao.matches('^links_[A-Za-z0-9_-]+$');
-    }
-
-    // --------------------------- NEGACAO EXPLICITA -------------------------
+    // --------------------------- NEGACAO EXPLICITA --------------------------
     // Documental. No Firestore uma regra so SOMA permissao, nunca remove,
     // entao este bloco nao restringe os anteriores: ele deixa o
-    // deny-by-default visivel. Ficam negadas: mapeamento_auditoria, atas,
-    // logs, tarefas_equipe e toda subcolecao.
+    // deny-by-default visivel. Qualquer colecao nao citada acima fica negada.
     match /{documento=**} {
       allow read, write: if false;
     }

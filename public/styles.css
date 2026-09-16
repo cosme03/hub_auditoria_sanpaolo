@@ -1,79 +1,82 @@
-/* =====================================================================
-   sanpaolo-design.css - identidade visual San Paolo
-   =====================================================================
-   Origem: bloco de CLASSES do styles.css do hub monolitico.
-   O :root e o [data-theme="dark"] daquele arquivo foram DESCARTADOS de
-   proposito: os dois temas eram incompativeis (la o dark vinha de
-   [data-theme="dark"], aqui vem de body.dark-mode) e varios tokens
-   colidiam com valores diferentes (--text-main, --text-muted, --sp-pistache).
-   A fonte unica de tokens continua sendo css/styles.css.
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
 
-   Esta primeira regra e a camada de traducao: da a cada nome de variavel
-   do design os tokens que ja existem em css/styles.css.
+/* ============================================================
+   SAN PAOLO GELATO - Hub Auditoria 3.0
+   ============================================================ */
 
-   Por que em `body` e nao em `:root`: uma custom property e resolvida no
-   elemento em que e DECLARADA. Declarada em :root, `var(--border)` pegaria
-   sempre o valor claro, porque quem troca os tokens no escuro e a regra
-   `body.dark-mode`. Declarando em `body`, a mesma regra que troca --border
-   atinge o mesmo elemento, e o modo escuro passa a funcionar.
-   ===================================================================== */
+:root {
+  --sp-red: #DA0D17;
+  --sp-red-dark: #B80A13;
+  --sp-red-soft: rgba(218, 13, 23, 0.08);
+  --sp-creme: #E8E1D0;
+  --sp-cafe: #56331B;
+  --sp-laranja: #DA5513;
+  --sp-pistache: #4F7043;
+  --sp-morango: #F29C94;
+  --sp-ao-leite: #265D7C;
+  
+  --bg-main: #FBF8F3;
+  --bg-surface: #FFFFFF;
+  --bg-surface-2: #F5EFE6;
+  --border-color: #E2D7C5;
+  --text-main: #331F10;
+  --text-body: #56331B;
+  --text-muted: #8C7361;
+  --input-bg: #FFFFFF;
+
+  --ff-display: 'Cormorant Garamond', Georgia, serif;
+  --ff-body: 'Plus Jakarta Sans', system-ui, sans-serif;
+
+  --r-sm: 8px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --shadow-sm: 0 4px 12px rgba(86, 51, 27, 0.05);
+  --shadow-md: 0 10px 30px rgba(86, 51, 27, 0.08);
+  --shadow-lg: 0 20px 48px rgba(86, 51, 27, 0.12);
+  --t-normal: 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-theme="dark"] {
+  --bg-main: #140D09;
+  --bg-surface: #1E1510;
+  --bg-surface-2: #281E17;
+  --border-color: #3D2C21;
+  --text-main: #FAF5EE;
+  --text-body: #E8E1D0;
+  --text-muted: #A89485;
+  --input-bg: #281E17;
+  --shadow-sm: 0 4px 12px rgba(0,0,0,0.3);
+  --shadow-md: 0 10px 30px rgba(0,0,0,0.4);
+  --shadow-lg: 0 20px 48px rgba(0,0,0,0.5);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--ff-body); }
+
 body {
-    /* superficies e bordas */
-    --border-color:  var(--border);
-    --bg-surface:    var(--surface);
-    --bg-surface-2:  var(--bg-color);
-    --bg-main:       var(--bg-color);
-    --input-bg:      var(--surface);
-
-    /* texto */
-    --text-body:     var(--text-main);
-
-    /* marca (a pasta A escreve --sp-aoleite, sem hifen no meio) */
-    --sp-ao-leite:   var(--sp-aoleite);
-    --sp-red-dark:   #B80A13;
-    --sp-red-soft:   rgba(218, 13, 23, 0.08);
-
-    /* raios */
-    --r-sm: var(--radius-sm);
-    --r-md: var(--radius-md);
-    --r-lg: var(--radius-lg);
-    --r-xl: var(--radius-xl);
-
-    /* tipografia e transicao */
-    --ff-display: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
-    --ff-body:    'Plus Jakarta Sans', Inter, system-ui, -apple-system, sans-serif;
-    --t-normal:   0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  background-color: var(--bg-main);
+  color: var(--text-body);
+  min-height: 100vh;
+  line-height: 1.5;
+  overflow-x: hidden;
+  transition: background-color var(--t-normal), color var(--t-normal);
+  position: relative;
 }
 
-/* O link externo para o checklist de terceiro nao foi portado; a classe
-   fica aqui apenas para nao quebrar quem ja tenha a marcacao. */
-
-/* -------------------------------------------------------------------------
-   Rota 2: a interface do hub sobre o motor modular.
-   A navegacao passou da barra lateral para as abas do topo. O componente
-   DynamicSidebar continua sendo renderizado porque e ele que injeta o modal
-   #modalPerfil ("Minha Conta"); so a barra em si fica oculta.
-   ------------------------------------------------------------------------- */
-#appSidebar,
-#sidebarOverlay,
-#sidebar-container .menu-btn {
-    display: none !important;
+/* MARCA D'AGUA DA SAN PAOLO COM ICONES EM TOM LEVE (BRANDBOOK P.48) */
+body::before {
+  content: '';
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg fill='%2356331B'%3E%3Cpath d='M30 20 a 10 10 0 0 1 20 0 a 10 10 0 0 1 -20 0'/%3E%3Cpath d='M80 70 l 10 20 l -20 0 z'/%3E%3Ccircle cx='90' cy='30' r='8'/%3E%3Ccircle cx='30' cy='80' r='6'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 140px 140px;
 }
 
-/* CoreUI.switchView marca a aba ativa com a classe active-nav; o design usa
-   .active. Espelhar aqui evita mexer no JS de navegacao. */
-.nav-tab-btn.active-nav {
-    color: var(--sp-red);
-    border-bottom-color: var(--sp-red);
-    font-weight: 700;
+#app-container {
+  position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column;
 }
 
-/* A shell deixou de ser flex de altura fixa: quem rola agora e a pagina. */
-#main-app {
-    display: block;
-    min-height: calc(100vh - 140px);
-}
-
+/* ---- HEADER ---- */
 .app-header {
   height: 68px; padding: 0 28px;
   background: var(--bg-surface);

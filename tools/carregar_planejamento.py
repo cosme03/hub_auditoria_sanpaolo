@@ -296,6 +296,25 @@ def main():
         if k:
             por_loja[k] = (did, d)
 
+    # indice dos eventos por (loja, data): e o que identifica "a mesma
+    # auditoria", ja que o id do documento varia conforme quem gravou.
+    por_loja_data = {}
+    for did, d in mapa.items():
+        por_loja_data.setdefault((chave(d.get("lojaNome", "")), d.get("data", "")), []).append((did, d))
+
+    # o que ja existe para as lojas desta carga, no mesmo mes
+    print("\nEventos ja registrados em setembro, nas lojas desta carga:")
+    alvos = {chave(l) for l, _, s, _ in CONSOLIDADO if s != "PENDENTE"}
+    achados = sorted(
+        (d.get("data", ""), d.get("lojaNome", ""), d.get("realizada", ""), d.get("auditor", ""))
+        for d in mapa.values()
+        if chave(d.get("lojaNome", "")) in alvos and str(d.get("data", "")).startswith("2026-09"))
+    if achados:
+        for data, nome, realizada, aud in achados:
+            print("  %s  %-32s realizada=%-4s %s" % (data, nome[:32], realizada, aud))
+    else:
+        print("  nenhum - as 16 auditorias desta carga ainda nao estao no banco")
+
     eventos, agendamentos, criacoes, avisos = [], [], [], []
 
     for loja, data_iso, status, auditor in CONSOLIDADO:
@@ -329,19 +348,46 @@ def main():
 
         if status in ("REALIZADA", "NAO REALIZADA"):
             realizada = "SIM" if status == "REALIZADA" else "NÃO"
-            ev_id = id_evento(loja, data_iso)
+
+            # Antes de criar, procura um evento JA REGISTRADO para a mesma loja
+            # na mesma data. Sem isso a carga criaria um segundo documento para
+            # a mesma auditoria, com id diferente - duplicata invisivel que
+            # inflaria a contagem de visitas do mes.
+            gemeos = por_loja_data.get((k, data_iso), [])
+            if gemeos:
+                ev_id = gemeos[0][0]
+                acao = "atualiza"
+                if len(gemeos) > 1:
+                    avisos.append("'%s' em %s ja tem %d registros no banco; "
+                                  "atualizo o primeiro (%s) e deixo os outros"
+                                  % (loja, data_iso, len(gemeos), ev_id))
+            else:
+                ev_id = id_evento(loja, data_iso)
+                acao = "cria"
+
             campos = {
                 "id": ev_id,
                 "lojaNome": atual.get("lojaNome") or loja,
                 "data": data_iso,
                 "auditor": auditor,
                 "realizada": realizada,
-                "nTentativa": 1,
+                "nTentativa": (gemeos[0][1].get("nTentativa") if gemeos else 1) or 1,
                 "semana": semana_do_mes(data_iso),
                 "motivo": MOTIVOS.get((loja, data_iso), ""),
             }
-            ja = mapa.get(ev_id)
-            eventos.append((ev_id, campos, "atualiza" if ja else "cria"))
+
+            # Se ja existe e o conteudo bate, nao ha o que fazer.
+            if gemeos:
+                antes = gemeos[0][1]
+                difs = {c: (antes.get(c), v) for c, v in campos.items()
+                        if c != "id" and antes.get(c) != v}
+                if not difs:
+                    avisos.append("'%s' em %s ja esta igual no banco - nada a fazer"
+                                  % (loja, data_iso))
+                    continue
+                acao = "atualiza: " + ", ".join(sorted(difs))
+
+            eventos.append((ev_id, campos, acao))
 
             # ultimaData so avanca; nunca retrocede.
             if status == "REALIZADA":
@@ -366,9 +412,10 @@ def main():
 
     print("\nEVENTOS em auditoria_mapeamento: %d" % len(eventos))
     for ev_id, c, acao in eventos:
-        print("  [%-8s] %-32s %s  realizada=%-4s %s" % (
-            acao, c["lojaNome"][:32], c["data"], c["realizada"],
+        print("  %-32s %s realizada=%-4s %s" % (
+            c["lojaNome"][:32], c["data"], c["realizada"],
             ("motivo: " + c["motivo"]) if c["motivo"] else ""))
+        print("      -> %s  [%s]" % (ev_id, acao))
 
     print("\nATUALIZACOES em auditoria_planejamento: %d" % len(agendamentos))
     for did, loja, campos, desc in agendamentos:

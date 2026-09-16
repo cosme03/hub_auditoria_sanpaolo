@@ -48,6 +48,32 @@ body {
 /* O link externo para o checklist de terceiro nao foi portado; a classe
    fica aqui apenas para nao quebrar quem ja tenha a marcacao. */
 
+/* -------------------------------------------------------------------------
+   Rota 2: a interface do hub sobre o motor modular.
+   A navegacao passou da barra lateral para as abas do topo. O componente
+   DynamicSidebar continua sendo renderizado porque e ele que injeta o modal
+   #modalPerfil ("Minha Conta"); so a barra em si fica oculta.
+   ------------------------------------------------------------------------- */
+#appSidebar,
+#sidebarOverlay,
+#sidebar-container .menu-btn {
+    display: none !important;
+}
+
+/* CoreUI.switchView marca a aba ativa com a classe active-nav; o design usa
+   .active. Espelhar aqui evita mexer no JS de navegacao. */
+.nav-tab-btn.active-nav {
+    color: var(--sp-red);
+    border-bottom-color: var(--sp-red);
+    font-weight: 700;
+}
+
+/* A shell deixou de ser flex de altura fixa: quem rola agora e a pagina. */
+#main-app {
+    display: block;
+    min-height: calc(100vh - 140px);
+}
+
 .app-header {
   height: 68px; padding: 0 28px;
   background: var(--bg-surface);

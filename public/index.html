@@ -36,34 +36,91 @@
 
 <body>
 
-    <div id="login-container" class="min-h-screen bg-background flex items-center justify-center p-4" style="background-image: linear-gradient(135deg, var(--sp-ninho) 0%, #FBF8F3 100%);">
-        <div class="bg-surface p-10 rounded-xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1)] w-full max-w-md border border-border">
-            <div class="flex flex-col items-center mb-6">
-                <img src="assets/logo_sanpaolo_red.png" alt="San Paolo Gelato e Café" class="h-16 w-auto mb-4">
-                <h2 id="authTitle" class="brand-title text-2xl font-bold text-center text-mainText m-0">HUB AUDITORIA</h2>
-                <p class="brand-subtitle text-xs tracking-widest text-mutedText mt-1">SAN PAOLO GELATO E CAFÉ</p>
+    <!-- Cabecalho da marca. Portado do hub original, sem dois itens:
+         o link externo para auditoria-checklist.lovable.app (servico de
+         terceiro fora do nosso controle) e o botao de configuracao do Firebase
+         em runtime, que contradiz a configuracao por variavel de ambiente. -->
+    <header class="app-header">
+        <div class="header-brand">
+            <img src="assets/logo_sanpaolo_red.png" alt="San Paolo Gelato e Café" class="brand-logo-img" />
+            <div>
+                <h1 class="brand-title">HUB AUDITORIA</h1>
+                <p class="brand-subtitle">SAN PAOLO GELATO E CAFÉ</p>
             </div>
-            
-            <div class="flex flex-col mb-4">
-                <label class="mb-2 font-medium text-sm text-mainText" for="userInput">E-mail corporativo</label>
-                <input type="email" id="userInput" autocomplete="username" inputmode="email" placeholder="nome@sanpaologelato.com.br" class="w-full p-2.5 border border-border rounded-md bg-surface text-mainText focus:outline-none focus:ring-2 focus:ring-brandOrange focus:border-transparent transition-all"
-                    onkeydown="if(event.key === 'Enter') window.handleAuth()">
+        </div>
+        <div class="header-actions">
+            <div class="user-profile-badge" id="user-badge-header">
+                <span class="avatar-circle" id="user-avatar-char">?</span>
+                <span class="user-name" id="display-user-name">Visitante</span>
             </div>
-            
-            <div class="flex flex-col mb-6">
-                <label class="mb-2 font-medium text-sm text-mainText" for="passInput">Senha</label>
-                <input type="password" id="passInput" autocomplete="current-password" class="w-full p-2.5 border border-border rounded-md bg-surface text-mainText focus:outline-none focus:ring-2 focus:ring-brandOrange focus:border-transparent transition-all"
-                    onkeydown="if(event.key === 'Enter') window.handleAuth()">
-            </div>
-            
-            <div class="mt-4">
-                <button class="w-full btn-primary"
-                    onclick="window.handleAuth()">Entrar no Sistema</button>
+            <button class="icon-btn" id="btn-theme-toggle" onclick="window.CoreUI.toggleDarkMode()" title="Alternar tema claro / escuro">
+                <i class="ph ph-moon" id="icon-theme"></i>
+            </button>
+            <button class="icon-btn hidden" id="btn-logout-header" onclick="window.logout()" title="Sair" style="color:var(--sp-red);">
+                <i class="ph ph-sign-out"></i>
+            </button>
+        </div>
+    </header>
+
+    <div id="login-container" class="main-viewport">
+        <div id="login-hero-card" class="hero-login-card">
+            <div class="hero-left-content">
+                <span class="hero-badge-tag"><i class="ph ph-sparkle"></i> CENTRAL DE AUDITORIA DE LOJAS</span>
+                <h2 class="hero-main-heading">Hub Auditoria <em>San Paolo</em></h2>
+
+                <div class="login-summary-grid">
+                    <div class="login-summary-item">
+                        <span class="summary-tag"><i class="ph ph-calendar-check"></i> AGENDA</span>
+                        <h4 class="summary-title">Planejamento</h4>
+                        <p class="summary-desc">Planejamento das 72 lojas com intervalo mínimo de 15 dias.</p>
+                    </div>
+                    <div class="login-summary-item">
+                        <span class="summary-tag"><i class="ph ph-map-trifold"></i> VISITAS</span>
+                        <h4 class="summary-title">Mapeamento</h4>
+                        <p class="summary-desc">Registro de tentativas com resposta SIM/NÃO e justificativa.</p>
+                    </div>
+                    <div class="login-summary-item">
+                        <span class="summary-tag"><i class="ph ph-kanban"></i> EQUIPE</span>
+                        <h4 class="summary-title">Tarefas da Equipe</h4>
+                        <p class="summary-desc">Quadro Kanban por status: Pendente, Em Andamento e Concluído.</p>
+                    </div>
+                    <div class="login-summary-item">
+                        <span class="summary-tag"><i class="ph ph-chart-pie-slice"></i> PRODUTIVIDADE</span>
+                        <h4 class="summary-title">Dashboard</h4>
+                        <p class="summary-desc">Produtividade da equipe e distribuição por auditor.</p>
+                    </div>
+                </div>
             </div>
 
-            <div class="mt-8 pt-4 border-t border-gray-200 text-center text-sm text-mutedText">
-                <div class="mb-1">Desenvolvido por: <strong class="text-mainText">Equipe San Paolo</strong></div>
-                <div>Versão <span>2.0.0 (Atomic JS)</span></div>
+            <div class="hero-right-form">
+                <h3 class="form-title-login">Acesse sua conta</h3>
+                <p class="form-sub-login">Digite seu e-mail e senha corporativa San Paolo</p>
+
+                <!-- Os ids userInput/passInput sao os que js/main.js le em
+                     window.handleAuth(). Mantidos de proposito. -->
+                <form onsubmit="event.preventDefault(); window.handleAuth();">
+                    <div class="form-group">
+                        <label class="form-label" for="userInput">E-mail Corporativo</label>
+                        <div class="search-input-wrapper">
+                            <i class="ph ph-envelope"></i>
+                            <input type="email" id="userInput" class="form-ctrl" autocomplete="username"
+                                placeholder="seu.nome@sanpaologelato.com.br" required />
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="passInput">Senha de Acesso</label>
+                        <div class="search-input-wrapper">
+                            <i class="ph ph-lock-key"></i>
+                            <input type="password" id="passInput" class="form-ctrl" autocomplete="current-password"
+                                placeholder="••••••••" required />
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-red-submit">
+                        <i class="ph ph-sign-in"></i> Entrar no Hub Auditoria
+                    </button>
+                </form>
             </div>
         </div>
     </div>

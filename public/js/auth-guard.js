@@ -19,6 +19,9 @@
     if (!user) {
       window.currentUser = null;
       window.userProfile = null;
+      if (typeof window.atualizarHeaderSessao === 'function') {
+        window.atualizarHeaderSessao(null);
+      }
       if (typeof window.mostrarTelaLogin === 'function') window.mostrarTelaLogin();
       else irParaLogin();
       return;
@@ -47,6 +50,11 @@
     window.userUid     = user.uid;
     window.userProfile = perfil;
     window.currentUser = perfil.displayName;   // chave de juncao dos dados
+
+    // O cabecalho da marca existe nas duas paginas e e independente da tela.
+    if (typeof window.atualizarHeaderSessao === 'function') {
+        window.atualizarHeaderSessao(window.currentUser);
+    }
 
     if (typeof window.initApp === 'function') window.initApp();
     if (window.NotificationService && typeof window.NotificationService.init === 'function') {

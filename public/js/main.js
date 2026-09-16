@@ -32,6 +32,9 @@ window.handleAuth = async function () {
     }
 }
 
+// atualizarHeaderSessao vive em js/services/CoreUI.js: o cabecalho existe nas
+// duas paginas e este arquivo so carrega na raiz.
+
 // Chamado pelo auth-guard quando nao ha sessao (ou apos signOut).
 window.mostrarTelaLogin = function () {
     const loginContainer = document.getElementById('login-container');
@@ -40,6 +43,7 @@ window.mostrarTelaLogin = function () {
     if (hubContainer) hubContainer.style.display = 'none';
     const passInput = document.getElementById('passInput');
     if (passInput) passInput.value = '';
+    window.atualizarHeaderSessao(null);
 }
 
 window.logout = function () {
@@ -55,6 +59,8 @@ window.initApp = function () {
     
     if (loginContainer) loginContainer.style.display = 'none';
     if (hubContainer) hubContainer.style.display = 'block';
+
+    window.atualizarHeaderSessao(window.currentUser);
 
     // Sem perfil carregado, nenhum card e renderizado. O fallback silencioso
     // para ["Auditoria"] que existia aqui dava acesso a quem nao tinha perfil.

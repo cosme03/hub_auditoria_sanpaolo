@@ -38,11 +38,68 @@
 
 <body class="bg-background text-mainText font-sans antialiased transition-colors duration-300 dark:bg-[#1a0f07] dark:text-[#f5f0e6]">
 
-    <div id="main-app" class="flex h-screen overflow-hidden bg-[var(--bg-color)] text-[var(--text-main)] transition-colors duration-300">
-        
-        <div id="sidebar-container"></div>
+    <!-- O DynamicSidebar continua sendo renderizado aqui porque e ele que
+         injeta o modal #modalPerfil ("Minha Conta"). A barra lateral em si
+         fica oculta por CSS: a navegacao passou para as abas do topo. -->
+    <div id="sidebar-container"></div>
 
-        <main class="flex-1 overflow-x-hidden overflow-y-auto bg-[var(--bg-color)] p-4 md:p-8 custom-scrollbar relative">
+    <header class="app-header">
+        <div class="header-brand" onclick="window.switchView('dashboard')" style="cursor:pointer;">
+            <img src="../../assets/logo_sanpaolo_red.png" alt="San Paolo Gelato e Café" class="brand-logo-img" />
+            <div>
+                <h1 class="brand-title">HUB AUDITORIA</h1>
+                <p class="brand-subtitle">SAN PAOLO GELATO E CAFÉ</p>
+            </div>
+        </div>
+        <div class="header-actions">
+            <div class="user-profile-badge" id="user-badge-header" onclick="window.abrirModalPerfil()" style="cursor:pointer;" title="Minha Conta">
+                <span class="avatar-circle" id="user-avatar-char">?</span>
+                <span class="user-name" id="display-user-name">Visitante</span>
+            </div>
+            <button class="icon-btn" onclick="window.CoreUI.goToHub()" title="Voltar ao portal">
+                <i class="ph ph-squares-four"></i>
+            </button>
+            <button class="icon-btn" id="btn-theme-toggle" onclick="window.CoreUI.toggleDarkMode()" title="Alternar tema claro / escuro">
+                <i class="ph ph-moon" id="icon-theme"></i>
+            </button>
+            <button class="icon-btn" id="btn-logout-header" onclick="window.logout()" title="Sair" style="color:var(--sp-red);">
+                <i class="ph ph-sign-out"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Os ids sao nav-<view> de proposito: e o que CoreUI.switchView ja usa
+         para marcar a aba ativa, entao a navegacao nao precisou de JS novo. -->
+    <nav class="nav-tabs-container" id="portal-tab-bar">
+        <button class="nav-tab-btn" id="nav-dashboard" onclick="window.switchView('dashboard')">
+            <i class="ph ph-chart-pie-slice"></i> Dashboard
+        </button>
+        <button class="nav-tab-btn" id="nav-planejamento" onclick="window.switchView('planejamento')">
+            <i class="ph ph-calendar-check"></i> Planejamento
+        </button>
+        <button class="nav-tab-btn" id="nav-mapeamento" onclick="window.switchView('mapeamento')">
+            <i class="ph ph-map-trifold"></i> Mapeamento
+        </button>
+        <button class="nav-tab-btn" id="nav-auditoriaOnline" onclick="window.switchView('auditoriaOnline')">
+            <i class="ph ph-clipboard-text"></i> Lançar Nota
+        </button>
+        <button class="nav-tab-btn" id="nav-tarefas" onclick="window.switchView('tarefas')">
+            <i class="ph ph-kanban"></i> Tarefas da Equipe
+        </button>
+        <button class="nav-tab-btn" id="nav-protocolos" onclick="window.switchView('protocolos')">
+            <i class="ph ph-ticket"></i> Protocolos
+        </button>
+        <button class="nav-tab-btn" id="nav-links" onclick="window.switchView('links')">
+            <i class="ph ph-link"></i> Links
+        </button>
+        <button class="nav-tab-btn" id="nav-metapwr" onclick="window.switchView('metapwr')">
+            <i class="ph ph-target"></i> Meta PWR
+        </button>
+    </nav>
+
+    <div id="main-app" class="bg-[var(--bg-color)] text-[var(--text-main)] transition-colors duration-300">
+
+        <main class="main-viewport custom-scrollbar relative">
             <div id="view-dashboard">
                 <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                     <div class="flex items-center gap-3">

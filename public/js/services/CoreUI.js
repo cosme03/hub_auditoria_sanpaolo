@@ -9,6 +9,19 @@ window.appConfig = Object.assign({}, window.appConfig, {
     ]
 });
 
+// Sincroniza o cabecalho da marca com o estado da sessao. Vive aqui, e nao no
+// main.js, porque o cabecalho existe nas DUAS paginas e o main.js so carrega na
+// raiz. Chamado pelo auth-guard ao resolver o perfil, e ao encerrar a sessao.
+window.atualizarHeaderSessao = function (nome) {
+    var badgeNome = document.getElementById('display-user-name');
+    var avatar = document.getElementById('user-avatar-char');
+    var btnSair = document.getElementById('btn-logout-header');
+
+    if (badgeNome) badgeNome.textContent = nome || 'Visitante';
+    if (avatar) avatar.textContent = nome ? nome.trim().charAt(0).toUpperCase() : '?';
+    if (btnSair) btnSair.classList.toggle('hidden', !nome);
+};
+
 // Escape de HTML. Unico ponto: e carregado nas duas paginas.
 window.escapeHtml = function (v) {
     if (v === null || v === undefined) return '';

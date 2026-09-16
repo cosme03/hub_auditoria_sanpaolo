@@ -376,16 +376,28 @@ def main():
                 "motivo": MOTIVOS.get((loja, data_iso), ""),
             }
 
-            # Se ja existe e o conteudo bate, nao ha o que fazer.
             if gemeos:
                 antes = gemeos[0][1]
+
+                # Regra de merge: valor vazio NUNCA sobrescreve conteudo que ja
+                # existe. A planilha consolidada nao tem coluna de observacao,
+                # entao o 'motivo' sai vazio daqui - grava-lo por cima apagaria
+                # a justificativa que alguem escreveu pelo sistema.
+                preservados = [c for c, v in campos.items()
+                               if v == "" and antes.get(c) not in (None, "")]
+                if preservados:
+                    campos = {c: v for c, v in campos.items() if c not in preservados}
+                    avisos.append("'%s' em %s: preservado o valor atual de %s"
+                                  % (loja, data_iso, ", ".join(sorted(preservados))))
+
                 difs = {c: (antes.get(c), v) for c, v in campos.items()
                         if c != "id" and antes.get(c) != v}
                 if not difs:
                     avisos.append("'%s' em %s ja esta igual no banco - nada a fazer"
                                   % (loja, data_iso))
                     continue
-                acao = "atualiza: " + ", ".join(sorted(difs))
+                acao = "atualiza: " + ", ".join(
+                    "%s (%r -> %r)" % (c, a, d) for c, (a, d) in sorted(difs.items()))
 
             eventos.append((ev_id, campos, acao))
 

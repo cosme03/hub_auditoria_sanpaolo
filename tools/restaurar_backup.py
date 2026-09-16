@@ -327,6 +327,32 @@ def main():
         if n:
             print("  %-22s %3d registros - o app nao tem tela nem regra para esta colecao" % (col, n))
 
+    # ---- conferencia de integridade, antes de qualquer escrita -----------
+    # Um documento que aparece duas vezes no plano recebe duas escritas, e a
+    # segunda apaga a primeira. Foi exatamente esse o defeito da versao com
+    # identidade (loja, data). Em vez de confiar no raciocinio, verifica.
+    alvos = [d[0] for d in criar] + [d[0] for d in atualizar]
+    repetidos = {a for a in alvos if alvos.count(a) > 1} if len(alvos) != len(set(alvos)) else set()
+    previstos = len(backup["auditoria_mapeamento"]) - len(semtraducao)
+    contabilizados = len(criar) + len(atualizar) + iguais
+
+    print("\n" + "-" * 74)
+    print("CONFERENCIA DE INTEGRIDADE")
+    print("  registros do backup a processar : %d" % previstos)
+    print("  contabilizados no plano         : %d  (%d novos + %d atualizar + %d iguais)"
+          % (contabilizados, len(criar), len(atualizar), iguais))
+    print("  documentos de destino           : %d, todos distintos: %s"
+          % (len(alvos), "SIM" if not repetidos else "NAO"))
+
+    if repetidos or contabilizados != previstos:
+        print("\n  ABORTADO: o plano nao fecha.")
+        if repetidos:
+            print("  documentos que receberiam mais de uma escrita: %s"
+                  % sorted(repetidos)[:10])
+        if contabilizados != previstos:
+            print("  %d registros do backup sumiram do plano." % (previstos - contabilizados))
+        sys.exit(1)
+
     print("-" * 74)
 
     if not args.apply:

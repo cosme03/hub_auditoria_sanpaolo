@@ -7052,12 +7052,27 @@ function normalizarUsuarios() {
   if (!state.usuarios || state.usuarios.length === 0) {
     state.usuarios = padroes;
   } else {
-    state.usuarios = state.usuarios.map((u, idx) => ({
-      id: u.id || ('usr_' + (idx + 1)),
-      nome: u.nome || 'Colaborador',
-      email: u.email && u.email !== 'undefined' ? u.email : (u.nome.toLowerCase().replace(/\s+/g, '.') + '@sanpaologelato.com.br'),
-      cargo: u.cargo || 'Auditor'
-    }));
+    state.usuarios = state.usuarios.map((u, idx) => {
+      // A colecao users passou a guardar perfis de ACESSO, onde o nome vive em
+      // displayName. Sem este fallback, todo mundo virava "Colaborador" - e os
+      // cards de produtividade, que cruzam por nome, nao casavam com nada.
+      const nome = u.nome || u.displayName || 'Colaborador';
+
+      // O e-mail derivado usa o nome ja resolvido. Antes lia u.nome direto:
+      // um perfil sem email derrubava o snapshot inteiro com TypeError.
+      const email = (u.email && u.email !== 'undefined')
+        ? u.email
+        : (nome.toLowerCase().replace(/\s+/g, '.') + '@sanpaologelato.com.br');
+
+      // Mescla, nao reconstroi: o map anterior descartava role, ativo,
+      // displayName e setores_permitidos a cada snapshot.
+      return Object.assign({}, u, {
+        id: u.id || ('usr_' + (idx + 1)),
+        nome: nome,
+        email: email,
+        cargo: u.cargo || 'Auditor'
+      });
+    });
   }
 }
 
@@ -7149,23 +7164,51 @@ async function adicionarNovoUsuario() {
     return;
   }
 
-  const novoUser = {
-    id: 'usr_' + Date.now(),
-    nome: nomeInput,
-    email: emailInput,
-    cargo: cargoInput,
-    criadoEm: new Date().toISOString()
-  };
+  const senhaInicial = prompt(
+    `Senha inicial de ${nomeInput} (mínimo 6 caracteres).\n\n` +
+    `Ela serve só para o primeiro acesso: a pessoa troca em "Minha Conta", ` +
+    `e a partir daí ninguém mais consegue ver a senha.`);
+  if (senhaInicial === null) return;
+  if (!senhaInicial || senhaInicial.length < 6) {
+    showToast('A senha inicial precisa de no mínimo 6 caracteres.', 'error');
+    return;
+  }
 
-  state.usuarios.push(novoUser);
-  salvarUsuarios();
+  // Cria a conta no Firebase Auth E o perfil em users/{uid}.
+  //
+  // A instancia secundaria e o ponto importante: createUserWithEmailAndPassword
+  // troca a sessao corrente pela do usuario recem-criado. Numa segunda
+  // instancia do Firebase, a sua sessao de admin nesta aba nao e tocada.
+  //
+  // O id do documento TEM de ser o uid: as regras resolvem o perfil por caminho
+  // literal users/$(request.auth.uid), nunca por consulta. Era isso que o
+  // codigo antigo errava ao gravar users/usr_<timestamp>.
+  let secundario = null;
+  try {
+    secundario = firebase.initializeApp(window.firebaseConfig, 'novoUsuario-' + Date.now());
+    const cred = await secundario.auth().createUserWithEmailAndPassword(emailInput, senhaInicial);
+    const uid = cred.user.uid;
+    await secundario.auth().signOut();
 
-  if (typeof db !== 'undefined' && db) {
-    try {
-      await db.collection('users').doc(novoUser.id).set(novoUser);
-    } catch(e) {
-      console.log("Nota Firestore user sync:", e.message);
-    }
+    await db.collection('users').doc(uid).set({
+      displayName: nomeInput,
+      email: emailInput,
+      cargo: cargoInput,
+      role: 'user',
+      ativo: true,
+      setores_permitidos: ['Auditoria']
+    });
+  } catch (e) {
+    console.error('Erro ao criar usuário:', e);
+    const msg = e && e.code === 'auth/email-already-in-use'
+      ? 'Já existe uma conta com esse e-mail.'
+      : (e && e.code === 'auth/invalid-email' ? 'E-mail inválido.'
+      : (e && e.code === 'permission-denied' ? 'Só um administrador pode cadastrar acessos.'
+      : 'Não foi possível criar o acesso: ' + (e.code || e.message)));
+    showToast(msg, 'error');
+    return;
+  } finally {
+    if (secundario) { try { await secundario.delete(); } catch (err) { console.error(err); } }
   }
 
   if (document.getElementById('usr-nome')) document.getElementById('usr-nome').value = '';
@@ -7177,22 +7220,38 @@ async function adicionarNovoUsuario() {
   showToast(`Colaborador ${nomeInput} cadastrado com sucesso!`, 'success');
 }
 
+// Desativa o acesso, em vez de apagar o documento.
+//
+// O id destes documentos e o uid do Firebase Auth. Apagar o perfil NAO apaga a
+// conta - isso exige o Admin SDK, que nao roda no navegador. Sobraria uma conta
+// capaz de autenticar sem perfil nenhum, e a pessoa ficaria travada na tela de
+// login sem ninguem entender por que. Com ativo:false o guarda de sessao recusa
+// a entrada com mensagem clara, e da para reverter.
 async function removerUsuario(userId) {
   const user = state.usuarios.find(u => u.id === userId || u.email === userId);
   if (!user) return;
 
-  if (!confirm(`Deseja realmente remover o colaborador ${user.nome} da equipe?`)) return;
+  if (user.id === window.usuarioUid) {
+    showToast('Você não pode desativar a própria conta.', 'error');
+    return;
+  }
 
-  state.usuarios = state.usuarios.filter(u => u.id !== user.id && u.email !== user.email);
-  salvarUsuarios();
+  if (!confirm(`Desativar o acesso de ${user.nome}?\n\n` +
+               `A pessoa deixa de conseguir entrar no Hub, mas o histórico de ` +
+               `auditorias dela é preservado. Dá para reativar depois.`)) return;
 
   if (typeof db !== 'undefined' && db) {
     try {
-      await db.collection('users').doc(user.id).delete();
-    } catch(e) {
-      console.log("Nota Firestore user delete:", e.message);
+      await db.collection('users').doc(user.id).update({ ativo: false });
+      showToast(`Acesso de ${user.nome} desativado.`, 'info');
+    } catch (e) {
+      console.error('Erro ao desativar usuário:', e);
+      showToast('Não foi possível desativar o acesso: ' + (e.code || e.message), 'error');
+      return;
     }
   }
+  // O onSnapshot de users devolve a lista atualizada; nao mexemos no estado
+  // local aqui para as duas versoes nao divergirem.
 
   renderUsuariosLista();
   renderPlanejamentoTable();
@@ -7575,22 +7634,32 @@ function renderPlanejamentoTable() {
   const dayVal = document.getElementById('plan-filter-day')?.value || '';
   const dateMode = document.getElementById('plan-date-mode')?.value || 'MES';
 
+  // Quem pode RECEBER uma auditoria: so perfis de acesso ativos.
   const listaAuditores = (state.usuarios && state.usuarios.length > 0)
-    ? state.usuarios.map(u => u.nome)
+    ? state.usuarios.filter(u => u.ativo !== false).map(u => u.nome)
     : ['Ana Raquel', 'Bruna Costa', 'Gabriel Pimentel', 'Matheus Cosme', 'Paulo Victor'];
 
   const criticasIds = getLojasCriticasIds(monthVal || undefined);
 
   let filtrados = state.planejamento.filter(item => {
-    const matchSearch = item.lojaNome.toLowerCase().includes(search) || item.regional.toLowerCase().includes(search);
+    // As guardas || '' nao sao decorativas: um registro sem lojaNome fazia
+    // .toLowerCase() de undefined, a excecao abortava este .filter() inteiro e
+    // a funcao morria ANTES de escrever tbody.innerHTML. Resultado: tabela
+    // completamente vazia, sem nem a mensagem "Nenhuma loja encontrada".
+    const matchSearch = (item.lojaNome || '').toLowerCase().includes(search)
+                     || (item.regional || '').toLowerCase().includes(search);
     const matchReg = !regional || item.regional === regional;
     const matchAud = !auditor || item.auditor === auditor;
 
+    // O periodo casa pela data PREVISTA ou pela data REALIZADA. So olhar
+    // proximaPrevista escondia toda auditoria ja concluida, que guarda a data
+    // em ultimaData e fica com proximaPrevista vazia.
     let matchDate = true;
     if (dateMode === 'MES' && monthVal) {
-      matchDate = Boolean(item.proximaPrevista && item.proximaPrevista.startsWith(monthVal));
+      matchDate = Boolean((item.proximaPrevista && item.proximaPrevista.startsWith(monthVal))
+                       || (item.ultimaData && item.ultimaData.startsWith(monthVal)));
     } else if (dateMode === 'DIA' && dayVal) {
-      matchDate = Boolean(item.proximaPrevista && item.proximaPrevista === dayVal);
+      matchDate = Boolean(item.proximaPrevista === dayVal || item.ultimaData === dayVal);
     }
 
     const currentCalculatedStatus = getStatusLojaPlanejamento(item, monthVal || undefined);
@@ -7620,9 +7689,17 @@ function renderPlanejamentoTable() {
     const statusClass = isConcluida ? 'concluida' : (calculatedStatus === 'ATRASADA' ? 'atrasada' : 'pendente');
     const statusLabel = isConcluida ? 'Realizada' : (calculatedStatus === 'ATRASADA' ? 'Atrasada' : 'Pendente');
 
-    const optionsAuditor = listaAuditores.map(aud => {
+    // O auditor atual do registro entra na lista mesmo que nao seja mais da
+    // equipe (ex-colaborador com historico). Sem isso o <option> dele nao
+    // existe, nenhum fica 'selected', o select exibe o primeiro nome da lista
+    // e qualquer interacao grava esse nome errado por cima no Firestore.
+    const opcoes = listaAuditores.slice();
+    if (item.auditor && !opcoes.includes(item.auditor)) opcoes.unshift(item.auditor);
+
+    const optionsAuditor = opcoes.map(aud => {
       const selected = (item.auditor === aud) ? 'selected' : '';
-      return `<option value="${aud}" ${selected}>${aud}</option>`;
+      const rotulo = listaAuditores.includes(aud) ? aud : aud + ' (fora da equipe)';
+      return `<option value="${aud}" ${selected}>${rotulo}</option>`;
     }).join('');
 
     return `
@@ -8462,11 +8539,13 @@ function getDashFilteredPlanejamento() {
   const loja = document.getElementById('dash-filter-loja')?.value || '';
 
   return state.planejamento.filter(item => {
+    // Mesma regra de periodo de renderPlanejamentoTable: prevista OU realizada.
+    // Se as duas telas divergirem aqui, o Dashboard conta um numero de lojas
+    // que o Planejamento nao consegue listar.
     let matchMonth = true;
-    if (monthVal && item.proximaPrevista) {
-      matchMonth = item.proximaPrevista.startsWith(monthVal);
-    } else if (monthVal && !item.proximaPrevista) {
-      matchMonth = false;
+    if (monthVal) {
+      matchMonth = Boolean((item.proximaPrevista && item.proximaPrevista.startsWith(monthVal))
+                        || (item.ultimaData && item.ultimaData.startsWith(monthVal)));
     }
 
     const matchReg = !regional || item.regional === regional;
@@ -8489,9 +8568,27 @@ function renderProdutividadeEquipe() {
   const monthVal = document.getElementById('dash-filter-month')?.value || new Date().toISOString().slice(0, 7);
   const filtrados = getDashFilteredPlanejamento();
 
-  const auditoresAtivos = (state.usuarios && state.usuarios.length > 0) ? state.usuarios : [];
+  // Os cards saem dos DADOS do periodo, nao do cadastro de acesso.
+  //
+  // Antes a lista vinha de state.usuarios, e isso tinha dois defeitos: quem
+  // tinha conta mas nao trabalhou no mes aparecia com card zerado, e quem
+  // trabalhou mas nao tem conta - caso da Fernanda Teles, com 139 registros -
+  // nao aparecia, deixando o trabalho dela sem dono no dashboard.
+  //
+  // Derivando dos registros filtrados, cada mes mostra exatamente quem atuou
+  // nele, e ex-colaboradores somem sozinhos dos meses em que nao atuaram.
+  const nomes = Array.from(new Set(
+    filtrados.map(p => p.auditor).filter(Boolean)
+  )).sort((a, b) => a.localeCompare(b));
 
-  container.innerHTML = auditoresAtivos.map(u => {
+  if (nomes.length === 0) {
+    container.innerHTML = '<p style="font-size:0.8rem; color:var(--text-muted);">' +
+      'Nenhuma auditoria atribuída no período selecionado.</p>';
+    return;
+  }
+
+  container.innerHTML = nomes.map(nome => {
+    const u = { nome: nome };
     const lojasDoAuditor = filtrados.filter(p => p.auditor === u.nome);
     const totalAtribuidas = lojasDoAuditor.length;
     const concluidasCount = lojasDoAuditor.filter(p => getStatusLojaPlanejamento(p, monthVal) === 'CONCLUIDA').length;
@@ -8606,9 +8703,11 @@ function renderChartAuditorRoscaDinamico(filtrados) {
   if (!ctx || typeof Chart === 'undefined') return;
   if (state.charts && state.charts.auditorRosca) state.charts.auditorRosca.destroy();
 
-  const auditoresList = (state.usuarios && state.usuarios.length > 0) 
-    ? state.usuarios.map(u => u.nome)
-    : ['Ana Raquel', 'Bruna Costa', 'Gabriel Pimentel', 'Matheus Cosme', 'Paulo Victor'];
+  // Mesma regra dos cards: as fatias saem de quem realmente atuou no periodo.
+  // A lista fixa de nomes gerava fatias zeradas e omitia ex-colaboradores.
+  const auditoresList = Array.from(new Set(
+    filtrados.map(p => p.auditor).filter(Boolean)
+  )).sort((a, b) => a.localeCompare(b));
 
   const counts = auditoresList.map(aud => filtrados.filter(p => p.auditor === aud).length);
 

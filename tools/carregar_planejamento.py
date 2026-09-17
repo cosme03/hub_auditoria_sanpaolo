@@ -442,8 +442,8 @@ def main():
 
     if not args.apply:
         print("\nSIMULACAO - nada foi escrito.")
-        print("Revise a lista acima. Para gravar:")
-        print("    python tools/carregar_planejamento.py --apply")
+        print("Revise a lista acima. Para gravar, o MESMO comando com --apply no final:\n")
+        print('    python "%s" --apply' % os.path.abspath(__file__).replace("\\", "/"))
         return
 
     # backup do estado atual antes de tocar em qualquer coisa

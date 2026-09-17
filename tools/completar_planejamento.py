@@ -258,7 +258,11 @@ def main():
 
     if not args.apply:
         print("\nSIMULACAO - nada foi escrito.")
-        print("Para gravar:  python tools/completar_planejamento.py --apply")
+        # Caminho absoluto de proposito: quem roda o script raramente esta
+        # dentro da pasta do projeto, e um caminho relativo aqui vira
+        # "No such file or directory" na hora de gravar.
+        print("Para gravar, o MESMO comando com --apply no final:\n")
+        print('    python "%s" --apply' % os.path.abspath(__file__).replace("\\", "/"))
         return
 
     os.makedirs(DIR_BACKUP, exist_ok=True)

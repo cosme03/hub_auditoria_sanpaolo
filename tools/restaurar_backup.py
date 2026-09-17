@@ -357,7 +357,8 @@ def main():
 
     if not args.apply:
         print("\nSIMULACAO - nada foi escrito.")
-        print("Para gravar:  python tools/restaurar_backup.py --apply")
+        print("Para gravar, o MESMO comando com --apply no final:\n")
+        print('    python "%s" --apply' % os.path.abspath(__file__).replace("\\", "/"))
         return
 
     os.makedirs(DIR_BACKUP, exist_ok=True)

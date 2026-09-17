@@ -8725,48 +8725,79 @@ function getDashFilteredPlanejamento() {
   });
 }
 
+// Eventos de mapeamento sob os mesmos filtros do Dashboard.
+// O mapeamento nao guarda `regional`, entao a regional vem do planejamento da
+// loja - por isso o cruzamento por lojaNome.
+function getDashFilteredMapeamento() {
+  const monthVal = document.getElementById('dash-filter-month')?.value || new Date().toISOString().slice(0, 7);
+  const regional = document.getElementById('dash-filter-regional')?.value || '';
+  const loja = document.getElementById('dash-filter-loja')?.value || '';
+
+  const regionalDaLoja = {};
+  (state.planejamento || []).forEach(p => {
+    if (p.lojaNome) regionalDaLoja[p.lojaNome] = p.regional || '';
+  });
+
+  return (state.mapeamento || []).filter(m => {
+    if (monthVal && !(m.data || '').startsWith(monthVal)) return false;
+    if (loja && m.lojaNome !== loja) return false;
+    if (regional && regionalDaLoja[m.lojaNome] !== regional) return false;
+    return true;
+  });
+}
+
 function renderProdutividadeEquipe() {
   const container = document.getElementById('produtividade-members-list');
   if (!container) return;
 
-  const monthVal = document.getElementById('dash-filter-month')?.value || new Date().toISOString().slice(0, 7);
-  const filtrados = getDashFilteredPlanejamento();
+  // A metrica e AUDITORIA REALIZADA, nao cobertura de carteira.
+  //
+  // Antes o card contava linhas do Planejamento atribuidas a pessoa. Quem
+  // realizava uma auditoria numa loja sem responsavel - ou de outro auditor -
+  // simplesmente nao era contabilizado, e quem nao tinha carteira no mes nem
+  // aparecia. Contando do Mapeamento, o card passa a refletir trabalho feito:
+  // quem executou recebe o credito, independente de a quem a loja pertence.
+  //
+  // O percentual e a PARTICIPACAO no total realizado no mes. Nao ha meta
+  // cadastrada em lugar nenhum do sistema, entao qualquer outro denominador
+  // seria inventado.
+  const eventos = getDashFilteredMapeamento();
 
-  // Os cards saem dos DADOS do periodo, nao do cadastro de acesso.
-  //
-  // Antes a lista vinha de state.usuarios, e isso tinha dois defeitos: quem
-  // tinha conta mas nao trabalhou no mes aparecia com card zerado, e quem
-  // trabalhou mas nao tem conta - caso da Fernanda Teles, com 139 registros -
-  // nao aparecia, deixando o trabalho dela sem dono no dashboard.
-  //
-  // Derivando dos registros filtrados, cada mes mostra exatamente quem atuou
-  // nele, e ex-colaboradores somem sozinhos dos meses em que nao atuaram.
-  const nomes = Array.from(new Set(
-    filtrados.map(p => p.auditor).filter(Boolean)
-  )).sort((a, b) => a.localeCompare(b));
+  const porAuditor = {};
+  eventos.forEach(m => {
+    const nome = m.auditor || 'Sem auditor';
+    if (!porAuditor[nome]) porAuditor[nome] = { realizadas: 0, tentativas: 0 };
+    if (m.realizada === 'SIM' || m.realizada === 'Sim') porAuditor[nome].realizadas++;
+    else porAuditor[nome].tentativas++;
+  });
+
+  const nomes = Object.keys(porAuditor).sort((a, b) =>
+    (porAuditor[b].realizadas - porAuditor[a].realizadas) || a.localeCompare(b));
 
   if (nomes.length === 0) {
     container.innerHTML = '<p style="font-size:0.8rem; color:var(--text-muted);">' +
-      'Nenhuma auditoria atribuída no período selecionado.</p>';
+      'Nenhuma auditoria registrada no período selecionado.</p>';
     return;
   }
 
+  const totalMes = nomes.reduce((s, n) => s + porAuditor[n].realizadas, 0);
+
   container.innerHTML = nomes.map(nome => {
-    const u = { nome: nome };
-    const lojasDoAuditor = filtrados.filter(p => p.auditor === u.nome);
-    const totalAtribuidas = lojasDoAuditor.length;
-    const concluidasCount = lojasDoAuditor.filter(p => getStatusLojaPlanejamento(p, monthVal) === 'CONCLUIDA').length;
-    
-    const pct = totalAtribuidas > 0 ? Math.round((concluidasCount / totalAtribuidas) * 100) : 0;
+    const d = porAuditor[nome];
+    const pct = totalMes > 0 ? Math.round((d.realizadas / totalMes) * 100) : 0;
+    const plural = d.realizadas === 1 ? 'auditoria realizada' : 'auditorias realizadas';
+    const semSucesso = d.tentativas > 0
+      ? ` · ${d.tentativas} ${d.tentativas === 1 ? 'tentativa sem sucesso' : 'tentativas sem sucesso'}`
+      : '';
 
     return `
       <div class="prod-member-item">
         <div class="prod-member-name">
-          <span>${u.nome}</span>
+          <span>${window.escapeHtml ? window.escapeHtml(nome) : nome}</span>
           <span style="color:var(--sp-pistache); font-weight:800;">${pct}%</span>
         </div>
         <div style="font-size:0.75rem; color:var(--text-muted);">
-          ${concluidasCount} de ${totalAtribuidas} auditorias concluídas
+          ${d.realizadas} ${plural}${semSucesso}
         </div>
         <div class="produtividade-bar-bg">
           <div class="produtividade-bar-fill" style="width: ${pct}%;"></div>
@@ -8774,6 +8805,7 @@ function renderProdutividadeEquipe() {
       </div>
     `;
   }).join('');
+
 }
 
 function renderDashboardCharts() {
@@ -8867,13 +8899,23 @@ function renderChartAuditorRoscaDinamico(filtrados) {
   if (!ctx || typeof Chart === 'undefined') return;
   if (state.charts && state.charts.auditorRosca) state.charts.auditorRosca.destroy();
 
-  // Mesma regra dos cards: as fatias saem de quem realmente atuou no periodo.
-  // A lista fixa de nomes gerava fatias zeradas e omitia ex-colaboradores.
-  const auditoresList = Array.from(new Set(
-    filtrados.map(p => p.auditor).filter(Boolean)
-  )).sort((a, b) => a.localeCompare(b));
+  // Mesma metrica dos cards: auditorias REALIZADAS no periodo, do Mapeamento.
+  //
+  // Antes a rosca contava lojas atribuidas no Planejamento. Como metade das
+  // lojas nao tem responsavel, o grafico sugeria que a operacao inteira estava
+  // dividida entre duas pessoas - e contradizia os cards ao lado.
+  const eventos = getDashFilteredMapeamento()
+    .filter(m => m.realizada === 'SIM' || m.realizada === 'Sim');
 
-  const counts = auditoresList.map(aud => filtrados.filter(p => p.auditor === aud).length);
+  const porAuditor = {};
+  eventos.forEach(m => {
+    const nome = m.auditor || 'Sem auditor';
+    porAuditor[nome] = (porAuditor[nome] || 0) + 1;
+  });
+
+  const auditoresList = Object.keys(porAuditor)
+    .sort((a, b) => (porAuditor[b] - porAuditor[a]) || a.localeCompare(b));
+  const counts = auditoresList.map(aud => porAuditor[aud]);
 
   if (!state.charts) state.charts = {};
   state.charts.auditorRosca = new Chart(ctx, {

@@ -7491,6 +7491,11 @@ function switchTab(tabId) {
     return;
   }
 
+  // Desarma o registro rapido ao sair da tela. Se o usuario abandonasse o
+  // atalho pela metade, o flag continuaria ligado e a proxima escolha de causa
+  // feita a mao gravaria um registro sem ele mandar.
+  if (tabId !== 'mapeamento') state.mapeamentoRapido = false;
+
   state.currentTab = tabId;
   state.activeTab = tabId;
 
@@ -7718,13 +7723,100 @@ function renderPlanejamentoTable() {
             ${optionsAuditor}
           </select>
         </td>
-        <td style="text-align:center;">
+        <td style="text-align:center; white-space:nowrap;">
           <span class="status-badge ${statusClass}">${statusLabel}</span>
+          <button class="icon-btn" title="Registrar tentativa não realizada para esta loja"
+                  onclick="registrarTentativaRapida('${item.id}')"
+                  style="width:32px; height:32px; margin-left:8px; vertical-align:middle;">
+            <i class="ph ph-phone-x"></i>
+          </button>
         </td>
       </tr>
     `;
   }).join('');
 }
+
+// Atalho do Planejamento para o Mapeamento.
+//
+// Preenche tudo o que da para deduzir - loja, data e hora de agora, auditor
+// logado, proximo numero de tentativa - e deixa so a causa para o usuario
+// escolher. Como a tentativa registrada aqui e sempre NAO realizada (que e o
+// caso em que existe causa), a escolha da causa fecha o registro sozinha.
+window.registrarTentativaRapida = function (planId) {
+  const item = (state.planejamento || []).find(p => p.id === planId);
+  if (!item || !item.lojaNome) {
+    showToast('Loja sem cadastro completo no planejamento.', 'error');
+    return;
+  }
+
+  switchTab('mapeamento');
+
+  const selLoja = document.getElementById('map-select-loja');
+  if (selLoja) {
+    selLoja.value = item.lojaNome;
+    // Se a loja nao existe na lista do mapeamento, abortar e dizer por que -
+    // sem isso o select cairia na primeira opcao e a tentativa seria gravada
+    // na loja errada.
+    if (selLoja.value !== item.lojaNome) {
+      showToast(`"${item.lojaNome}" não está na lista de lojas do mapeamento.`, 'error');
+      return;
+    }
+  }
+
+  const agora = new Date();
+  const dataEl = document.getElementById('map-input-data');
+  if (dataEl) dataEl.value = agora.toISOString().slice(0, 10);
+
+  const horaEl = document.getElementById('map-input-horario');
+  if (horaEl) {
+    horaEl.value = String(agora.getHours()).padStart(2, '0') + ':' +
+                   String(agora.getMinutes()).padStart(2, '0');
+  }
+
+  const realEl = document.getElementById('map-select-realizada');
+  if (realEl) realEl.value = 'NÃO';
+  if (typeof toggleMapMotivoUI === 'function') toggleMapMotivoUI();
+
+  const audEl = document.getElementById('map-select-auditor');
+  if (audEl && window.currentUser) {
+    audEl.value = window.currentUser;
+    if (audEl.value !== window.currentUser) audEl.selectedIndex = 0;
+  }
+
+  if (typeof sugerirProximaTentativaLoja === 'function') sugerirProximaTentativaLoja();
+
+  const motivoEl = document.getElementById('map-select-motivo');
+  if (motivoEl) motivoEl.value = '';
+
+  // Liga o modo rapido: a proxima escolha de causa grava o registro.
+  // O flag e consumido em aoEscolherMotivoMapeamento, entao o formulario volta
+  // ao comportamento normal logo depois.
+  state.mapeamentoRapido = true;
+
+  const box = document.getElementById('map-motivo-box');
+  if (box) {
+    box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    box.style.transition = 'box-shadow 0.3s';
+    box.style.boxShadow = '0 0 0 3px rgba(218,13,23,0.35)';
+    setTimeout(() => { box.style.boxShadow = ''; }, 2600);
+  }
+  if (motivoEl) setTimeout(() => motivoEl.focus(), 350);
+
+  const tent = document.getElementById('map-select-tentativa')?.value || '1';
+  showToast(`${item.lojaNome} — ${tent}ª tentativa. Escolha a causa para registrar.`, 'info');
+};
+
+// Só age quando o registro veio do atalho do Planejamento. No uso normal do
+// formulário, escolher a causa não grava nada: o usuário clica em "Registrar".
+window.aoEscolherMotivoMapeamento = function () {
+  if (!state.mapeamentoRapido) return;
+
+  const motivo = document.getElementById('map-select-motivo')?.value;
+  if (!motivo) return;
+
+  state.mapeamentoRapido = false;
+  salvarTentativaMapeamento();
+};
 
 async function alterarDataPrevistaPlanejamento(lojaId, novaData) {
   const item = state.planejamento.find(p => p.id === lojaId);
@@ -7979,7 +8071,7 @@ function renderMapeamentoTable() {
   });
 
   if (filtrados.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);">
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);">
       ${state.mapFilterCriticas ? '🎉 Nenhuma loja crítica encontrada no momento!' : 'Nenhum registro de mapeamento encontrado.'}
     </td></tr>`;
     return;
@@ -7999,9 +8091,81 @@ function renderMapeamentoTable() {
       <td><span class="status-tag ${m.realizada === 'SIM' ? 'concluida' : 'atrasada'}">${m.realizada}</span></td>
       <td style="${isNao ? 'color:#DA0D17; font-weight:600;' : ''}">${m.motivo || '-'}</td>
       <td>${m.auditor || 'Auditor'}</td>
+      <td style="text-align:center;">
+        <button class="icon-btn" title="Remover este registro de mapeamento"
+                onclick="removerMapeamento('${String(m.id).replace(/'/g, "\\'")}')"
+                style="color:var(--sp-red); width:32px; height:32px;">
+          <i class="ph ph-trash"></i>
+        </button>
+      </td>
     </tr>`;
   }).join('');
 }
+
+// Recalcula a ultimaData do planejamento a partir do que sobrou no mapeamento.
+// Sem isso, apagar a auditoria realizada de uma loja deixaria o Planejamento
+// afirmando uma data de visita que nao existe mais em lugar nenhum.
+async function recalcularUltimaDataDaLoja(lojaNome) {
+  const plan = (state.planejamento || []).find(p => p.lojaNome === lojaNome);
+  if (!plan) return;
+
+  const datas = (state.mapeamento || [])
+    .filter(m => m.lojaNome === lojaNome && (m.realizada === 'SIM' || m.realizada === 'Sim'))
+    .map(m => m.data)
+    .filter(Boolean)
+    .sort();
+
+  const nova = datas.length ? datas[datas.length - 1] : '';
+  if ((plan.ultimaData || '') === nova) return;
+
+  plan.ultimaData = nova;
+  salvarPlanejamento();
+
+  if (typeof db !== 'undefined' && db) {
+    try {
+      await db.collection('auditoria_planejamento').doc(plan.id).update({ ultimaData: nova });
+    } catch (e) {
+      console.error('Erro ao recalcular ultimaData:', e);
+    }
+  }
+}
+
+window.removerMapeamento = async function (id) {
+  const reg = (state.mapeamento || []).find(m => String(m.id) === String(id));
+  if (!reg) {
+    showToast('Registro não encontrado.', 'error');
+    return;
+  }
+
+  const resumo = `${reg.lojaNome}\n` +
+    `Data: ${formatDate(reg.data)}\n` +
+    `Tentativa: ${reg.nTentativa}ª  |  Realizada: ${reg.realizada}\n` +
+    (reg.motivo ? `Causa: ${reg.motivo}\n` : '') +
+    `Auditor: ${reg.auditor || '-'}`;
+
+  if (!confirm(`Remover este registro de mapeamento?\n\n${resumo}\n\nA ação não pode ser desfeita.`)) return;
+
+  if (typeof db !== 'undefined' && db) {
+    try {
+      await db.collection('auditoria_mapeamento').doc(String(reg.id)).delete();
+    } catch (e) {
+      console.error('Erro ao remover mapeamento:', e);
+      showToast('Não foi possível remover: ' + (e.code || e.message), 'error');
+      return;   // nao mexe no estado local se a nuvem recusou
+    }
+  }
+
+  state.mapeamento = (state.mapeamento || []).filter(m => String(m.id) !== String(reg.id));
+  salvarMapeamento();
+
+  await recalcularUltimaDataDaLoja(reg.lojaNome);
+
+  renderMapeamentoTable();
+  renderPlanejamentoTable();
+  if (state.currentTab === 'dashboard') renderDashboardCharts();
+
+  showToast(`Registro de ${reg.lojaNome} removido.`, 'info');
+};
 
 async function salvarTentativaMapeamento() {
   const loja = document.getElementById('map-select-loja')?.value;

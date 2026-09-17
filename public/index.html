@@ -337,7 +337,9 @@
 
         <div id="map-motivo-box" class="hidden" style="margin-bottom:16px;">
           <label class="form-label">Causa para Não Realização (Obrigatório se NÃO)</label>
-          <select id="map-select-motivo" class="form-ctrl">
+          <!-- O onchange só age no registro rápido vindo do Planejamento; no
+               uso normal do formulário ele não faz nada. -->
+          <select id="map-select-motivo" class="form-ctrl" onchange="aoEscolherMotivoMapeamento()">
             <option value="">Selecione a causa da não realização...</option>
             <option value="LOJA EM OBRA/MANUTENÇÃO">LOJA EM OBRA / MANUTENÇÃO</option>
             <option value="LOJA NÃO ATENDEU A LIGAÇÃO">LOJA NÃO ATENDEU A LIGAÇÃO</option>
@@ -373,6 +375,7 @@
               <th>Realizada</th>
               <th>Causa / Justificativa</th>
               <th>Auditor</th>
+              <th style="text-align:center;">Ações</th>
             </tr>
           </thead>
           <tbody id="mapeamento-table-body"></tbody>

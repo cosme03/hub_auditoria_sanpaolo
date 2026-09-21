@@ -7770,11 +7770,10 @@ window.registrarTentativaRapida = function (planId) {
   const dataEl = document.getElementById('map-input-data');
   if (dataEl) dataEl.value = agora.toISOString().slice(0, 10);
 
-  const horaEl = document.getElementById('map-input-horario');
-  if (horaEl) {
-    horaEl.value = String(agora.getHours()).padStart(2, '0') + ':' +
-                   String(agora.getMinutes()).padStart(2, '0');
-  }
+  const customEl = document.getElementById('map-input-motivo-custom');
+  if (customEl) customEl.value = '';
+  const customBox = document.getElementById('map-motivo-custom-box');
+  if (customBox) customBox.classList.add('hidden');
 
   const realEl = document.getElementById('map-select-realizada');
   if (realEl) realEl.value = 'NÃO';
@@ -7812,10 +7811,20 @@ window.registrarTentativaRapida = function (planId) {
 // Só age quando o registro veio do atalho do Planejamento. No uso normal do
 // formulário, escolher a causa não grava nada: o usuário clica em "Registrar".
 window.aoEscolherMotivoMapeamento = function () {
+  const isCustom = typeof verificarMotivoCustomUI === 'function' ? verificarMotivoCustomUI() : false;
+
   if (!state.mapeamentoRapido) return;
 
   const motivo = document.getElementById('map-select-motivo')?.value;
   if (!motivo) return;
+
+  // Se o motivo escolhido for OUTRO MOTIVO (DESCREVER), não grava de imediato no clique:
+  // desarma o mapeamento rápido e permite que o usuário digite a justificativa
+  if (isCustom) {
+    state.mapeamentoRapido = false;
+    showToast('Por favor, digite os detalhes da justificativa e clique em Registrar Mapeamento.', 'info');
+    return;
+  }
 
   state.mapeamentoRapido = false;
   salvarTentativaMapeamento();
@@ -8027,8 +8036,30 @@ function toggleFiltroLojasCriticas() {
 
 function toggleMapMotivoUI() {
   const val = document.getElementById('map-select-realizada')?.value;
+  const isNao = val === 'NÃO' || val === 'NAO';
   const box = document.getElementById('map-motivo-box');
-  if (box) box.classList.toggle('hidden', val !== 'NÃO' && val !== 'NAO');
+  if (box) box.classList.toggle('hidden', !isNao);
+
+  if (!isNao) {
+    const customBox = document.getElementById('map-motivo-custom-box');
+    if (customBox) customBox.classList.add('hidden');
+  } else {
+    verificarMotivoCustomUI();
+  }
+}
+
+function verificarMotivoCustomUI() {
+  const motivo = document.getElementById('map-select-motivo')?.value;
+  const customBox = document.getElementById('map-motivo-custom-box');
+  const isCustom = motivo === 'OUTRO MOTIVO (DESCREVER)';
+  if (customBox) {
+    customBox.classList.toggle('hidden', !isCustom);
+    if (isCustom) {
+      const input = document.getElementById('map-input-motivo-custom');
+      if (input) setTimeout(() => input.focus(), 150);
+    }
+  }
+  return isCustom;
 }
 
 function sugerirProximaTentativaLoja() {
@@ -8174,7 +8205,7 @@ async function salvarTentativaMapeamento() {
   const loja = document.getElementById('map-select-loja')?.value;
   const data = document.getElementById('map-input-data')?.value || new Date().toISOString().slice(0, 10);
   const realizada = document.getElementById('map-select-realizada')?.value || 'SIM';
-  const motivo = document.getElementById('map-select-motivo')?.value;
+  let motivo = document.getElementById('map-select-motivo')?.value;
   const auditor = document.getElementById('map-select-auditor')?.value || (state.usuarios && state.usuarios[0] ? state.usuarios[0].nome : 'Auditor');
   const nTentativa = parseInt(document.getElementById('map-select-tentativa')?.value || '1', 10);
 
@@ -8183,9 +8214,20 @@ async function salvarTentativaMapeamento() {
     return;
   }
 
-  if ((realizada === 'NÃO' || realizada === 'NAO') && !motivo) {
-    showToast('Informe a causa quando a resposta for NÃO.', 'error');
-    return;
+  if (realizada === 'NÃO' || realizada === 'NAO') {
+    if (!motivo) {
+      showToast('Informe a causa quando a resposta for NÃO.', 'error');
+      return;
+    }
+    if (motivo === 'OUTRO MOTIVO (DESCREVER)') {
+      const customTexto = document.getElementById('map-input-motivo-custom')?.value.trim();
+      if (!customTexto) {
+        showToast('Por favor, descreva a justificativa da não realização.', 'error');
+        document.getElementById('map-input-motivo-custom')?.focus();
+        return;
+      }
+      motivo = customTexto;
+    }
   }
 
   const dayOfMonth = new Date(data).getDate();
@@ -8207,6 +8249,12 @@ async function salvarTentativaMapeamento() {
 
   state.mapeamento.unshift(nova);
   salvarMapeamento();
+
+  // Limpar campo customizado se houver
+  const customInput = document.getElementById('map-input-motivo-custom');
+  if (customInput) customInput.value = '';
+  const customBox = document.getElementById('map-motivo-custom-box');
+  if (customBox) customBox.classList.add('hidden');
 
   if (typeof db !== 'undefined' && db) {
     try {
@@ -8824,19 +8872,20 @@ function renderDashboardCharts() {
   const totalLojasNoPeriodo = filtrados.length;
   const concluidasCount = filtrados.filter(p => getStatusLojaPlanejamento(p, monthVal) === 'CONCLUIDA').length;
   const atrasadasCount = filtrados.filter(p => getStatusLojaPlanejamento(p, monthVal) === 'ATRASADA').length;
+  const pendentesCount = Math.max(0, totalLojasNoPeriodo - concluidasCount);
   const coberturaPct = totalLojasNoPeriodo > 0 ? Math.round((concluidasCount / totalLojasNoPeriodo) * 100) : 0;
 
-  const tentativasNoMes = state.mapeamento.filter(m => m.data && m.data.startsWith(monthVal)).length;
-
+  const concEl = document.getElementById('dash-concluidas');
+  const pendEl = document.getElementById('dash-pendentes');
   const cobEl = document.getElementById('dash-cobertura');
   const atrEl = document.getElementById('dash-atrasadas');
   const totEl = document.getElementById('dash-total-lojas');
-  const tenEl = document.getElementById('dash-tentativas');
 
+  if (concEl) concEl.textContent = concluidasCount;
+  if (pendEl) pendEl.textContent = pendentesCount;
   if (cobEl) cobEl.textContent = `${coberturaPct}%`;
   if (atrEl) atrEl.textContent = atrasadasCount;
   if (totEl) totEl.textContent = totalLojasNoPeriodo;
-  if (tenEl) tenEl.textContent = tentativasNoMes;
 
   renderProdutividadeEquipe();
 

@@ -311,10 +311,6 @@
             <input type="date" id="map-input-data" class="form-ctrl" />
           </div>
           <div>
-            <label class="form-label">Horário</label>
-            <input type="time" id="map-input-horario" class="form-ctrl" />
-          </div>
-          <div>
             <label class="form-label">Realizada? (SIM ou NÃO)</label>
             <select id="map-select-realizada" class="form-ctrl" onchange="toggleMapMotivoUI()">
               <option value="SIM">SIM</option>
@@ -357,6 +353,11 @@
             <option value="ATITUDE SUSPEITA">ATITUDE SUSPEITA</option>
             <option value="OUTRO MOTIVO (DESCREVER)">OUTRO MOTIVO (DESCREVER)</option>
           </select>
+
+          <div id="map-motivo-custom-box" class="hidden" style="margin-top:10px;">
+            <label class="form-label" style="color:var(--sp-red); font-weight:700;">Descreva a Justificativa / Motivo</label>
+            <input type="text" id="map-input-motivo-custom" class="form-ctrl" placeholder="Digite o motivo detalhado da não realização..." />
+          </div>
         </div>
 
         <!-- BOTÃO REGISTRAR MAPEAMENTO ELEGANTE -->
@@ -481,12 +482,30 @@
         </div>
       </div>
 
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px;">
-        <div class="kpi-card">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:24px;">
+        <div class="kpi-card kpi-concluidas">
           <div class="kpi-icon" style="background:rgba(79,112,67,0.12);color:var(--sp-pistache);">
             <i class="ph ph-check-circle"></i>
           </div>
-          <div>
+          <div class="kpi-info">
+            <p class="kpi-value kpi-val-concluidas" id="dash-concluidas">0</p>
+            <p class="kpi-label">Lojas Concluídas</p>
+          </div>
+        </div>
+        <div class="kpi-card kpi-pendentes">
+          <div class="kpi-icon" style="background:rgba(218,85,19,0.12);color:var(--sp-laranja);">
+            <i class="ph ph-hourglass-high"></i>
+          </div>
+          <div class="kpi-info">
+            <p class="kpi-value kpi-val-pendentes" id="dash-pendentes">0</p>
+            <p class="kpi-label">Lojas Que Faltam</p>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:rgba(79,112,67,0.12);color:var(--sp-pistache);">
+            <i class="ph ph-chart-donut"></i>
+          </div>
+          <div class="kpi-info">
             <p class="kpi-value" id="dash-cobertura">0%</p>
             <p class="kpi-label">Cobertura do Mês</p>
           </div>
@@ -495,8 +514,8 @@
           <div class="kpi-icon" style="background:rgba(218,13,23,0.12);color:var(--sp-red);">
             <i class="ph ph-warning-octagon"></i>
           </div>
-          <div>
-            <p class="kpi-value" id="dash-atrasadas">0</p>
+          <div class="kpi-info">
+            <p class="kpi-value kpi-val-atrasadas" id="dash-atrasadas">0</p>
             <p class="kpi-label">Auditorias Atrasadas</p>
           </div>
         </div>
@@ -504,18 +523,9 @@
           <div class="kpi-icon" style="background:rgba(38,93,124,0.12);color:var(--sp-ao-leite);">
             <i class="ph ph-storefront"></i>
           </div>
-          <div>
+          <div class="kpi-info">
             <p class="kpi-value" id="dash-total-lojas">0</p>
-            <p class="kpi-label">Lojas no Período</p>
-          </div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-icon" style="background:rgba(218,85,19,0.12);color:var(--sp-laranja);">
-            <i class="ph ph-map-trifold"></i>
-          </div>
-          <div>
-            <p class="kpi-value" id="dash-tentativas">0</p>
-            <p class="kpi-label">Tentativas Registradas</p>
+            <p class="kpi-label">Total de Lojas</p>
           </div>
         </div>
       </div>

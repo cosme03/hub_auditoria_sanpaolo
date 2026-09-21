@@ -7040,6 +7040,47 @@ function setupRealtimeCloudSync() {
 // 👥 GESTÃO DE EQUIPE & SELECTS
 // ============================================================
 
+const AUDITORES_EQUIPE_BASE = [
+  'Ana Raquel',
+  'Bruna Costa',
+  'Gabriel Pimentel',
+  'Matheus Cosme',
+  'Paulo Victor'
+];
+
+function getListaAuditoresUnificada() {
+  const set = new Set();
+  
+  // 1. Equipe base permanente (Bruna Costa, Matheus, Ana, Paulo, Gabriel)
+  AUDITORES_EQUIPE_BASE.forEach(nome => set.add(nome));
+
+  // 2. Usuários cadastrados no Firestore (state.usuarios)
+  if (Array.isArray(state.usuarios)) {
+    state.usuarios.forEach(u => {
+      const nome = (u.nome || u.displayName || '').trim();
+      if (nome && u.ativo !== false && nome !== 'Colaborador') set.add(nome);
+    });
+  }
+
+  // 3. Auditores que já aparecem no planejamento
+  if (Array.isArray(state.planejamento)) {
+    state.planejamento.forEach(p => {
+      const nome = (p.auditor || p.responsavel || '').trim();
+      if (nome && nome !== 'Sem auditor' && nome !== 'undefined') set.add(nome);
+    });
+  }
+
+  // 4. Auditores que já aparecem no mapeamento histórico
+  if (Array.isArray(state.mapeamento)) {
+    state.mapeamento.forEach(m => {
+      const nome = (m.auditor || m.autor || '').trim();
+      if (nome && nome !== 'Sem auditor' && nome !== 'undefined') set.add(nome);
+    });
+  }
+
+  return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+}
+
 function normalizarUsuarios() {
   const padroes = [
     { id: 'usr_1', nome: 'Ana Raquel', email: 'ana.raquel@sanpaologelato.com.br', cargo: 'Auditor Sênior' },
@@ -7053,19 +7094,11 @@ function normalizarUsuarios() {
     state.usuarios = padroes;
   } else {
     state.usuarios = state.usuarios.map((u, idx) => {
-      // A colecao users passou a guardar perfis de ACESSO, onde o nome vive em
-      // displayName. Sem este fallback, todo mundo virava "Colaborador" - e os
-      // cards de produtividade, que cruzam por nome, nao casavam com nada.
       const nome = u.nome || u.displayName || 'Colaborador';
-
-      // O e-mail derivado usa o nome ja resolvido. Antes lia u.nome direto:
-      // um perfil sem email derrubava o snapshot inteiro com TypeError.
       const email = (u.email && u.email !== 'undefined')
         ? u.email
         : (nome.toLowerCase().replace(/\s+/g, '.') + '@sanpaologelato.com.br');
 
-      // Mescla, nao reconstroi: o map anterior descartava role, ativo,
-      // displayName e setores_permitidos a cada snapshot.
       return Object.assign({}, u, {
         id: u.id || ('usr_' + (idx + 1)),
         nome: nome,
@@ -7078,15 +7111,26 @@ function normalizarUsuarios() {
 
 function popularSelectsUsuarios() {
   const selects = ['plan-filter-auditor', 'map-select-auditor', 'nota-select-auditor', 'kanban-filter-responsavel', 'dem-responsavel'];
+  const auditores = getListaAuditoresUnificada();
+
   selects.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const currentVal = el.value;
     const isFilter = id.includes('filter');
-    el.innerHTML = isFilter ? '<option value="">Todos os Responsáveis</option>' : '<option value="">Selecione...</option>';
-    state.usuarios.forEach(u => {
-      el.innerHTML += `<option value="${u.nome}">${u.nome}</option>`;
+    
+    let html = isFilter ? '<option value="">Todos os Responsáveis</option>' : '<option value="">Selecione...</option>';
+    
+    // Se for o filtro do planejamento, adiciona opção para lojas sem auditor
+    if (id === 'plan-filter-auditor') {
+      html += '<option value="__SEM_AUDITOR__">⚠️ [Sem Auditor / Não Atribuídas]</option>';
+    }
+
+    auditores.forEach(nome => {
+      html += `<option value="${nome}">${nome}</option>`;
     });
+
+    el.innerHTML = html;
     if (currentVal) el.value = currentVal;
   });
 }
@@ -7551,14 +7595,14 @@ function closeConfigModal() {
 /**
  * Calcula dinamicamente o status mensal de uma loja no Planejamento:
  * - CONCLUIDA: Se houver auditoria com REALIZADA === 'SIM' no mês de referência (ex: Setembro)
- * - ATRASADA: Se a data prevista já passou em relação a hoje e ainda não foi realizada no mês
- * - PENDENTE: Se a data prevista é futura/hoje e ainda não foi realizada no mês
+ * - ATRASADA: Se a data prevista pertence ao mês ativo, já passou em relação a hoje e ainda não foi realizada
+ * - PENDENTE: Se a data prevista é futura no mês, se não há data ou se pertence a outro mês ainda não planejado
  */
 function getStatusLojaPlanejamento(item, targetMonth = null) {
   const hoje = new Date().toISOString().slice(0, 10);
   const activeMonth = targetMonth || (typeof document !== 'undefined' && (document.getElementById('plan-filter-month')?.value || document.getElementById('map-filter-month')?.value)) || hoje.slice(0, 7);
 
-  // Verifica se houve visita realizada com SUCESSO (SIM) no mês ativo
+  // 1. Verifica se houve visita realizada com SUCESSO (SIM) no mês ativo
   const teveAuditoriaNoMes = (state.mapeamento || []).some(m => 
     m.lojaNome === item.lojaNome && 
     (m.realizada === 'SIM' || m.realizada === 'Sim') && 
@@ -7570,15 +7614,15 @@ function getStatusLojaPlanejamento(item, targetMonth = null) {
     return 'CONCLUIDA';
   }
 
-  // Se não foi realizada no mês, avalia a data prevista
-  if (!item.proximaPrevista) {
+  // 2. Se a data prevista pertence ao mês ativo de referência
+  if (item.proximaPrevista && item.proximaPrevista.startsWith(activeMonth)) {
+    if (item.proximaPrevista < hoje) {
+      return 'ATRASADA';
+    }
     return 'PENDENTE';
   }
 
-  if (item.proximaPrevista < hoje) {
-    return 'ATRASADA';
-  }
-
+  // 3. Se não tem data no mês de referência (ou tem data antiga de mês passado), fica PENDENTE para agendamento no mês ativo
   return 'PENDENTE';
 }
 
@@ -7639,34 +7683,27 @@ function renderPlanejamentoTable() {
   const dayVal = document.getElementById('plan-filter-day')?.value || '';
   const dateMode = document.getElementById('plan-date-mode')?.value || 'MES';
 
-  // Quem pode RECEBER uma auditoria: so perfis de acesso ativos.
-  const listaAuditores = (state.usuarios && state.usuarios.length > 0)
-    ? state.usuarios.filter(u => u.ativo !== false).map(u => u.nome)
-    : ['Ana Raquel', 'Bruna Costa', 'Gabriel Pimentel', 'Matheus Cosme', 'Paulo Victor'];
+  // Lista unificada e resiliente com toda a equipe de auditores
+  const listaAuditores = getListaAuditoresUnificada();
 
   const criticasIds = getLojasCriticasIds(monthVal || undefined);
 
-  let filtrados = state.planejamento.filter(item => {
-    // As guardas || '' nao sao decorativas: um registro sem lojaNome fazia
-    // .toLowerCase() de undefined, a excecao abortava este .filter() inteiro e
-    // a funcao morria ANTES de escrever tbody.innerHTML. Resultado: tabela
-    // completamente vazia, sem nem a mensagem "Nenhuma loja encontrada".
+  let filtrados = (state.planejamento || []).filter(item => {
     const matchSearch = (item.lojaNome || '').toLowerCase().includes(search)
                      || (item.regional || '').toLowerCase().includes(search);
     const matchReg = !regional || item.regional === regional;
-    const matchAud = !auditor || (item.auditor || '').toLowerCase().includes(auditor.toLowerCase());
 
-    // O periodo casa pela data PREVISTA ou pela data REALIZADA. So olhar
-    // proximaPrevista escondia toda auditoria ja concluida, que guarda a data
-    // em ultimaData e fica com proximaPrevista vazia.
+    let matchAud = true;
+    if (auditor === '__SEM_AUDITOR__') {
+      matchAud = !item.auditor || item.auditor.trim() === '' || item.auditor === 'Sem auditor';
+    } else if (auditor) {
+      matchAud = (item.auditor || '').toLowerCase().includes(auditor.toLowerCase());
+    }
+
     let matchDate = true;
     if (dateMode === 'DIA' && dayVal) {
       matchDate = Boolean(item.proximaPrevista === dayVal || item.ultimaData === dayVal);
     } else if (dateMode === 'MES' && monthVal) {
-      // No modo MES mostramos todas as lojas: o status calculado por
-      // getStatusLojaPlanejamento(item, monthVal) é quem separa as realizadas
-      // das pendentes/faltantes. Filtrar por data aqui excluiria as lojas sem
-      // agendamento no mês (justamente as "faltantes" que o usuário quer ver).
       matchDate = true;
     }
 
@@ -7697,23 +7734,22 @@ function renderPlanejamentoTable() {
     const statusClass = isConcluida ? 'concluida' : (calculatedStatus === 'ATRASADA' ? 'atrasada' : 'pendente');
     const statusLabel = isConcluida ? 'Realizada' : (calculatedStatus === 'ATRASADA' ? 'Atrasada' : 'Pendente');
 
-    // O auditor atual do registro entra na lista mesmo que nao seja mais da
-    // equipe (ex-colaborador com historico). Sem isso o <option> dele nao
-    // existe, nenhum fica 'selected', o select exibe o primeiro nome da lista
-    // e qualquer interacao grava esse nome errado por cima no Firestore.
+    // Opções de auditores disponíveis para cada loja
     const opcoes = listaAuditores.slice();
     if (item.auditor && !opcoes.includes(item.auditor)) opcoes.unshift(item.auditor);
 
-    const optionsAuditor = opcoes.map(aud => {
-      const selected = (item.auditor === aud) ? 'selected' : '';
-      const rotulo = listaAuditores.includes(aud) ? aud : aud + ' (fora da equipe)';
-      return `<option value="${aud}" ${selected}>${rotulo}</option>`;
-    }).join('');
+    const optionsAuditor = [
+      `<option value="" ${!item.auditor ? 'selected' : ''}>-- Selecione o Auditor --</option>`,
+      ...opcoes.map(aud => {
+        const selected = (item.auditor === aud) ? 'selected' : '';
+        return `<option value="${aud}" ${selected}>${aud}</option>`;
+      })
+    ].join('');
 
     return `
       <tr>
         <td><strong>${item.lojaNome}</strong></td>
-        <td><span class="status-badge andamento">${item.regional}</span></td>
+        <td><span class="status-badge andamento">${item.regional || '-'}</span></td>
         <td>${getUltimaAuditoriaDaLoja(item.lojaNome, item.ultimaData || item.ultimaAuditoria)}</td>
         <td>
           <input type="date" class="form-ctrl" style="width:145px; padding:6px 10px; font-size:0.8rem;" 
@@ -7721,7 +7757,7 @@ function renderPlanejamentoTable() {
                  onchange="alterarDataPrevistaPlanejamento('${item.id}', this.value)" />
         </td>
         <td>
-          <select class="form-ctrl" style="width:160px; padding:6px 10px; font-size:0.8rem;" 
+          <select class="form-ctrl" style="width:170px; padding:6px 10px; font-size:0.8rem;" 
                   onchange="alterarAuditorLoja('${item.id}', this.value)">
             ${optionsAuditor}
           </select>
@@ -8265,10 +8301,13 @@ async function salvarTentativaMapeamento() {
   }
 
   if (realizada === 'SIM') {
-    const plan = state.planejamento.find(p => p.lojaNome === loja);
+    const plan = (state.planejamento || []).find(p => p.lojaNome === loja);
     if (plan) {
       plan.ultimaData = data;
       plan.status = 'CONCLUIDA';
+      if (plan.proximaPrevista && plan.proximaPrevista <= data) {
+        plan.proximaPrevista = '';
+      }
       salvarPlanejamento();
 
       if (typeof db !== 'undefined' && db) {

@@ -7654,17 +7654,20 @@ function renderPlanejamentoTable() {
     const matchSearch = (item.lojaNome || '').toLowerCase().includes(search)
                      || (item.regional || '').toLowerCase().includes(search);
     const matchReg = !regional || item.regional === regional;
-    const matchAud = !auditor || item.auditor === auditor;
+    const matchAud = !auditor || (item.auditor || '').toLowerCase().includes(auditor.toLowerCase());
 
     // O periodo casa pela data PREVISTA ou pela data REALIZADA. So olhar
     // proximaPrevista escondia toda auditoria ja concluida, que guarda a data
     // em ultimaData e fica com proximaPrevista vazia.
     let matchDate = true;
-    if (dateMode === 'MES' && monthVal) {
-      matchDate = Boolean((item.proximaPrevista && item.proximaPrevista.startsWith(monthVal))
-                       || (item.ultimaData && item.ultimaData.startsWith(monthVal)));
-    } else if (dateMode === 'DIA' && dayVal) {
+    if (dateMode === 'DIA' && dayVal) {
       matchDate = Boolean(item.proximaPrevista === dayVal || item.ultimaData === dayVal);
+    } else if (dateMode === 'MES' && monthVal) {
+      // No modo MES mostramos todas as lojas: o status calculado por
+      // getStatusLojaPlanejamento(item, monthVal) é quem separa as realizadas
+      // das pendentes/faltantes. Filtrar por data aqui excluiria as lojas sem
+      // agendamento no mês (justamente as "faltantes" que o usuário quer ver).
+      matchDate = true;
     }
 
     const currentCalculatedStatus = getStatusLojaPlanejamento(item, monthVal || undefined);

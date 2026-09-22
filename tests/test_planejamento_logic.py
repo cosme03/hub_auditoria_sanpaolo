@@ -78,14 +78,13 @@ def filtrar_planejamento(state, search='', regional='', auditor='', month_val=''
 def run_tests():
     print("--- Executando Testes Unitarios de Planejamento ---")
     
-    equipe_base = ['Ana Raquel', 'Bruna Costa', 'Gabriel Pimentel', 'Matheus Cosme', 'Paulo Victor']
+    equipe_base = ['Ana Raquel', 'Bruna Costa', 'Matheus Cosme']
     
-    # Teste 1: Preservacao de Bruna Costa quando Firestore retorna apenas 3 usuarios
+    # Teste 1: Preservacao de Bruna Costa e auditores do banco
     state = {
         'usuarios': [
             {'id': 'u1', 'displayName': 'Matheus Cosme', 'ativo': True},
-            {'id': 'u2', 'displayName': 'Ana Raquel', 'ativo': True},
-            {'id': 'u3', 'displayName': 'Paulo Victor', 'ativo': True}
+            {'id': 'u2', 'displayName': 'Ana Raquel', 'ativo': True}
         ],
         'planejamento': [
             {'id': 'p1', 'lojaNome': 'Loja 1', 'auditor': 'Bruna Costa', 'proximaPrevista': '2026-09-25'},
@@ -97,7 +96,10 @@ def run_tests():
     
     auditores = get_lista_auditores_unificada(state, equipe_base)
     assert 'Bruna Costa' in auditores, "FALHA: Bruna Costa deve estar na lista unificada de auditores!"
-    assert 'Gabriel Pimentel' in auditores, "FALHA: Gabriel Pimentel deve estar na lista!"
+    assert 'Matheus Cosme' in auditores, "FALHA: Matheus Cosme deve estar na lista!"
+    assert 'Gabriel Pimentel' not in auditores, "FALHA: Gabriel Pimentel não deve estar na lista se não estiver no banco!"
+    assert 'Paulo Victor' not in auditores, "FALHA: Paulo Victor não deve estar na lista se não estiver no banco!"
+    print("OK - Teste 1 Passou: Lista unificada preserva auditores do banco e não inclui Gabriel/Paulo.")
     print("OK - Teste 1 Passou: Lista unificada preserva Bruna Costa e toda equipe base.")
     
     # Teste 2: Filtro por Bruna Costa

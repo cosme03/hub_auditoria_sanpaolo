@@ -1279,8 +1279,8 @@ const REAL_BACKUP_PLANEJAMENTO = [
     "uf": "SP",
     "ultimaData": "",
     "proximaPrevista": "",
-    "auditor": "Paulo Victor",
-    "status": "AGENDADA"
+    "auditor": "",
+    "status": "PENDENTE"
   },
   {
     "id": "PLAN_71",
@@ -6644,20 +6644,8 @@ const REAL_BACKUP_USUARIOS = [
     "meta": 24
   },
   {
-    "id": "P3dP9ILtPAlD1zXMkSwa",
-    "nome": "Gabriel Pimentel",
-    "cargo": "Auditor",
-    "meta": 24
-  },
-  {
     "id": "cM4YSWSlBwBwiH9de5TW",
     "nome": "Matheus Cosme",
-    "cargo": "Auditor",
-    "meta": 24
-  },
-  {
-    "id": "P5Qw8vwsQmeA99fwWCE3",
-    "nome": "Paulo Victor",
     "cargo": "Auditor",
     "meta": 24
   }
@@ -7043,15 +7031,13 @@ function setupRealtimeCloudSync() {
 const AUDITORES_EQUIPE_BASE = [
   'Ana Raquel',
   'Bruna Costa',
-  'Gabriel Pimentel',
-  'Matheus Cosme',
-  'Paulo Victor'
+  'Matheus Cosme'
 ];
 
 function getListaAuditoresUnificada() {
   const set = new Set();
   
-  // 1. Equipe base permanente (Bruna Costa, Matheus, Ana, Paulo, Gabriel)
+  // 1. Auditores base da equipe (Ana Raquel, Bruna Costa, Matheus Cosme)
   AUDITORES_EQUIPE_BASE.forEach(nome => set.add(nome));
 
   // 2. Usuários cadastrados no Firestore (state.usuarios)
@@ -7085,9 +7071,7 @@ function normalizarUsuarios() {
   const padroes = [
     { id: 'usr_1', nome: 'Ana Raquel', email: 'ana.raquel@sanpaologelato.com.br', cargo: 'Auditor Sênior' },
     { id: 'usr_2', nome: 'Bruna Costa', email: 'bruna.costa@sanpaologelato.com.br', cargo: 'Auditor Sênior' },
-    { id: 'usr_3', nome: 'Gabriel Pimentel', email: 'gabriel.pimentel@sanpaologelato.com.br', cargo: 'Auditor Júnior' },
-    { id: 'usr_4', nome: 'Matheus Cosme', email: 'matheus.cosme@sanpaologelato.com.br', cargo: 'Auditor Sênior' },
-    { id: 'usr_5', nome: 'Paulo Victor', email: 'paulo.victor@sanpaologelato.com.br', cargo: 'Auditor Júnior' }
+    { id: 'usr_4', nome: 'Matheus Cosme', email: 'matheus.cosme@sanpaologelato.com.br', cargo: 'Auditor Sênior' }
   ];
 
   if (!state.usuarios || state.usuarios.length === 0) {

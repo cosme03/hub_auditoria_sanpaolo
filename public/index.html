@@ -48,9 +48,6 @@
         <span class="user-name" id="display-user-name">Visitante</span>
       </div>
 
-      <button class="icon-btn hidden" id="btn-lojas-header" style="gap:6px;padding:0 14px;width:auto;font-size:0.78rem;font-weight:600;" onclick="openModalLojas()">
-        <i class="ph ph-storefront"></i> Lojas
-      </button>
       <button class="icon-btn hidden" id="btn-equipe-header" style="gap:6px;padding:0 14px;width:auto;font-size:0.78rem;font-weight:600;" onclick="openModalUsuarios()">
         <i class="ph ph-users"></i> Equipe
       </button>
@@ -747,50 +744,74 @@
   </div>
 </div>
 
-<!-- MODAL: GESTÃO DE LOJAS -->
-<div id="modal-lojas" class="modal-overlay hidden">
-  <div class="modal-demand-box" style="max-width:640px;">
-    <h3 class="modal-demand-title"><i class="ph ph-storefront"></i> Gerenciar Lojas da Rede</h3>
-    <div style="display:grid;grid-template-columns:2fr 1.2fr 0.8fr 1.5fr;gap:10px;margin-bottom:10px;">
-      <input type="text" id="nova-loja-nome" class="form-ctrl" placeholder="Nome da Loja (ex: SPCE - IGUATEMI)" />
-      <select id="nova-loja-regional" class="form-ctrl"></select>
-      <input type="text" id="nova-loja-uf" class="form-ctrl" placeholder="UF" maxlength="2" style="text-transform:uppercase;" />
-      <select id="nova-loja-auditor" class="form-ctrl"></select>
+<!-- MODAL: CONFIGURAÇÕES DO SISTEMA -->
+<div id="modal-config" class="modal-overlay hidden">
+  <div class="modal-demand-box" style="max-width:720px; width:95%;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid var(--border-color); padding-bottom:10px;">
+      <h3 class="modal-demand-title" style="margin:0;"><i class="ph ph-gear"></i> Configurações do Sistema</h3>
+      <button class="icon-btn" onclick="closeConfigModal()" style="width:28px; height:28px; font-size:1rem;"><i class="ph ph-x"></i></button>
     </div>
-    <div style="margin-bottom:16px; text-align:right;">
-      <button class="btn-red-submit" style="width:auto; padding:8px 18px; font-size:0.82rem;" onclick="adicionarNovaLoja()">
-        <i class="ph ph-plus"></i> Cadastrar Loja
+
+    <!-- ABAS INTERNAS DE CONFIGURAÇÃO -->
+    <div style="display:flex; gap:8px; margin-bottom:16px; border-bottom:1px solid var(--border-color); padding-bottom:8px;">
+      <button type="button" class="filter-pill-btn active" id="cfg-tab-btn-lojas" onclick="switchConfigTab('lojas')">
+        <i class="ph ph-storefront"></i> Gestão de Lojas & Condições
+      </button>
+      <button type="button" class="filter-pill-btn" id="cfg-tab-btn-banco" onclick="switchConfigTab('banco')">
+        <i class="ph ph-database"></i> Conexão & Banco (Firebase)
       </button>
     </div>
-    <div style="border-top:1px solid var(--border-color);padding-top:14px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-        <p style="font-weight:700;font-size:0.85rem;margin:0;">Lojas Cadastradas no Sistema:</p>
-        <input type="text" id="busca-gestao-lojas" class="form-ctrl" placeholder="🔍 Buscar loja..." style="width:180px; padding:6px 10px; font-size:0.78rem;" oninput="renderGestaoLojasLista()" />
-      </div>
-      <div id="gestao-lojas-lista" style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow-y:auto;"></div>
-    </div>
-    <div style="margin-top:16px;text-align:right;">
-      <button class="btn-cream-cancel" onclick="closeModalLojas()">Fechar</button>
-    </div>
-  </div>
-</div>
 
-<!-- MODAL: CONFIGURAÇÕES FIREBASE -->
-<div id="modal-config" class="modal-overlay hidden">
-  <div class="modal-demand-box" style="max-width:480px;">
-    <h3 class="modal-demand-title"><i class="ph ph-gear"></i> Configurações do Banco</h3>
-    <div style="margin-bottom:12px;">
-      <label class="form-label">API Key</label>
-      <!-- Sem valor fixo: openConfigModal() preenche mascarado a partir da
-           configuracao gerada no build. -->
-      <input type="text" id="cfg-api-key" class="form-ctrl" value="" readonly />
+    <!-- ABA 1: GESTÃO DE LOJAS & CONDIÇÕES -->
+    <div id="cfg-tab-lojas" class="cfg-tab-content">
+      <!-- FORMULÁRIO DE CADASTRO -->
+      <div style="background:var(--bg-surface-2); border:1px solid var(--border-color); border-radius:var(--r-md); padding:14px; margin-bottom:16px;">
+        <p style="font-weight:700; font-size:0.8rem; color:var(--sp-cafe); text-transform:uppercase; margin-bottom:10px;">
+          <i class="ph ph-plus-circle"></i> Cadastrar Nova Loja
+        </p>
+        <div style="display:grid; grid-template-columns:2fr 1.2fr 0.8fr 1.5fr; gap:10px; margin-bottom:10px;">
+          <input type="text" id="nova-loja-nome" class="form-ctrl" placeholder="Nome da Loja (ex: SPCE - IGUATEMI)" />
+          <select id="nova-loja-regional" class="form-ctrl"></select>
+          <input type="text" id="nova-loja-uf" class="form-ctrl" placeholder="UF" maxlength="2" style="text-transform:uppercase;" />
+          <select id="nova-loja-auditor" class="form-ctrl"></select>
+        </div>
+        <div style="text-align:right;">
+          <button type="button" class="btn-red-submit" style="width:auto; padding:8px 18px; font-size:0.82rem;" onclick="adicionarNovaLoja()">
+            <i class="ph ph-plus"></i> Cadastrar Loja
+          </button>
+        </div>
+      </div>
+
+      <!-- LISTA DE LOJAS E CONDIÇÕES -->
+      <div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <p style="font-weight:700; font-size:0.84rem; margin:0;">Lojas Cadastradas & Condições:</p>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <input type="month" id="cfg-mes-condicao" class="form-ctrl" style="width:135px; padding:4px 8px; font-size:0.78rem;" onchange="renderConfigLojasLista()" title="Mês de referência para exceções/condições" />
+            <input type="text" id="busca-gestao-lojas" class="form-ctrl" placeholder="🔍 Buscar loja..." style="width:170px; padding:5px 10px; font-size:0.78rem;" oninput="renderConfigLojasLista()" />
+          </div>
+        </div>
+        <div id="gestao-lojas-lista" style="display:flex; flex-direction:column; gap:8px; max-height:280px; overflow-y:auto; padding-right:4px;"></div>
+      </div>
     </div>
-    <div style="margin-bottom:16px;">
-      <label class="form-label">Project ID</label>
-      <input type="text" id="cfg-project-id" class="form-ctrl" value="san-paolo-auditoria" readonly />
+
+    <!-- ABA 2: CONEXÃO E BANCO -->
+    <div id="cfg-tab-banco" class="cfg-tab-content hidden">
+      <div style="margin-bottom:14px;">
+        <label class="form-label">API Key do Firebase</label>
+        <input type="text" id="cfg-api-key" class="form-ctrl" value="" readonly />
+      </div>
+      <div style="margin-bottom:16px;">
+        <label class="form-label">Project ID</label>
+        <input type="text" id="cfg-project-id" class="form-ctrl" value="san-paolo-auditoria" readonly />
+      </div>
+      <div style="background:var(--bg-surface-2); border:1px solid var(--border-color); border-radius:var(--r-md); padding:12px; font-size:0.82rem; color:var(--text-muted);">
+        <i class="ph ph-info"></i> As variáveis de ambiente de produção são configuradas e injetadas de forma segura durante o build na nuvem.
+      </div>
     </div>
-    <div style="display:flex;gap:10px;">
-      <button class="btn-red-submit" style="width:auto;" onclick="closeConfigModal()">OK</button>
+
+    <div style="margin-top:16px; text-align:right; border-top:1px solid var(--border-color); padding-top:12px;">
+      <button class="btn-cream-cancel" onclick="closeConfigModal()">Fechar</button>
     </div>
   </div>
 </div>

@@ -7111,16 +7111,6 @@ function populateDropdowns() {
   ['plan-filter-regional', 'dash-filter-regional'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
-    el.innerHTML = '<option value="">Todas as Regionais (KA)</option>';
-    REGIONAIS_OFICIAIS.forEach(r => el.add(new Option(r, r)));
-  });
-
-  const dashLoja = document.getElementById('dash-filter-loja');
-  if (dashLoja) {
-function populateDropdowns() {
-  ['plan-filter-regional', 'dash-filter-regional'].forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
     const curVal = el.value;
     el.innerHTML = '<option value="">Todas as Regionais (KA)</option>';
     REGIONAIS_OFICIAIS.forEach(r => el.add(new Option(r, r)));
@@ -7166,19 +7156,7 @@ function populateDropdowns() {
   }
 }
 
-function openModalLojas() {
-  popularSelectsLojasModal();
-  renderGestaoLojasLista();
-  document.getElementById('modal-lojas')?.classList.remove('hidden');
-  document.getElementById('modal-lojas')?.classList.add('active');
-}
-
-function closeModalLojas() {
-  document.getElementById('modal-lojas')?.classList.add('hidden');
-  document.getElementById('modal-lojas')?.classList.remove('active');
-}
-
-function popularSelectsLojasModal() {
+function popularSelectsConfigModal() {
   const regSel = document.getElementById('nova-loja-regional');
   if (regSel) {
     regSel.innerHTML = '<option value="">Regional...</option>';
@@ -7192,11 +7170,12 @@ function popularSelectsLojasModal() {
   }
 }
 
-function renderGestaoLojasLista() {
+function renderConfigLojasLista() {
   const container = document.getElementById('gestao-lojas-lista');
   if (!container) return;
 
   const termo = (document.getElementById('busca-gestao-lojas')?.value || '').toLowerCase().trim();
+  const mesAtivo = document.getElementById('cfg-mes-condicao')?.value || new Date().toISOString().slice(0, 7);
 
   const lojas = (state.planejamento || []).filter(p => {
     return (p.lojaNome || '').toLowerCase().includes(termo)
@@ -7211,29 +7190,89 @@ function renderGestaoLojasLista() {
 
   container.innerHTML = lojas.map(l => {
     const isAtiva = l.ativa !== false;
-    const badge = isAtiva
+    const badgeAtiva = isAtiva
       ? '<span class="status-badge concluida" style="font-size:0.68rem; padding:2px 8px;">Ativa</span>'
       : '<span class="status-badge inativa" style="font-size:0.68rem; padding:2px 8px;">Inativa</span>';
-    const btnTexto = isAtiva ? 'Desativar' : 'Reativar';
-    const btnIcon = isAtiva ? 'ph-power' : 'ph-arrow-clockwise';
-    const btnCor = isAtiva ? 'var(--sp-red)' : 'var(--sp-pistache)';
+    
+    const condicaoMes = (l.excecoesMes && l.excecoesMes[mesAtivo]) || '';
+    const temCondicao = Boolean(condicaoMes);
+
+    const badgeCondicao = temCondicao
+      ? `<span class="status-badge suspensa" style="font-size:0.68rem; padding:2px 8px;" title="${window.escapeHtml ? window.escapeHtml(condicaoMes) : condicaoMes}"><i class="ph ph-wrench"></i> ${window.escapeHtml ? window.escapeHtml(condicaoMes) : condicaoMes}</span>`
+      : '';
+
+    const btnAtivarTexto = isAtiva ? 'Desativar' : 'Reativar';
+    const btnAtivarIcon = isAtiva ? 'ph-power' : 'ph-arrow-clockwise';
+    const btnAtivarCor = isAtiva ? 'var(--sp-red)' : 'var(--sp-pistache)';
+
+    const btnCondicaoTexto = temCondicao ? 'Remover Condição' : '+ Condição / Obra';
+    const btnCondicaoCor = temCondicao ? 'var(--sp-laranja)' : 'var(--sp-ao-leite)';
 
     return `
-      <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:var(--bg-surface-2); border:1px solid var(--border-color); border-radius:var(--r-md); margin-bottom:4px;">
-        <div>
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 14px; background:var(--bg-surface-2); border:1px solid var(--border-color); border-radius:var(--r-md); margin-bottom:4px; gap:10px;">
+        <div style="flex:1; min-width:0;">
           <strong style="font-size:0.84rem; color:var(--text-main);">${window.escapeHtml ? window.escapeHtml(l.lojaNome) : l.lojaNome}</strong>
-          <div style="font-size:0.75rem; color:var(--text-muted); display:flex; gap:8px; align-items:center; margin-top:2px;">
+          <div style="font-size:0.75rem; color:var(--text-muted); display:flex; gap:8px; align-items:center; margin-top:3px; flex-wrap:wrap;">
             <span>${l.regional || '-'} · ${l.uf || '-'}</span>
             <span>Auditor: ${l.auditor || 'Sem auditor'}</span>
-            ${badge}
+            ${badgeAtiva}
+            ${badgeCondicao}
           </div>
         </div>
-        <button class="icon-btn" style="width:auto; padding:4px 10px; font-size:0.75rem; color:${btnCor}; gap:4px;" onclick="toggleStatusAtivoLoja('${l.id}')">
-          <i class="ph ${btnIcon}"></i> ${btnTexto}
-        </button>
+        <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
+          <button type="button" class="icon-btn" style="width:auto; padding:4px 10px; font-size:0.75rem; color:${btnCondicaoCor}; gap:4px;" onclick="gerenciarCondicaoLojaModal('${l.id}', '${mesAtivo}')">
+            <i class="ph ph-sliders"></i> ${btnCondicaoTexto}
+          </button>
+          <button type="button" class="icon-btn" style="width:auto; padding:4px 10px; font-size:0.75rem; color:${btnAtivarCor}; gap:4px;" onclick="toggleStatusAtivoLoja('${l.id}')">
+            <i class="ph ${btnAtivarIcon}"></i> ${btnAtivarTexto}
+          </button>
+        </div>
       </div>
     `;
   }).join('');
+}
+
+async function gerenciarCondicaoLojaModal(lojaId, mesAtivo) {
+  const item = (state.planejamento || []).find(p => p.id === lojaId);
+  if (!item) return;
+
+  if (!item.excecoesMes) item.excecoesMes = {};
+  const condicaoAtual = item.excecoesMes[mesAtivo] || '';
+
+  if (condicaoAtual) {
+    if (confirm(`Remover a condição/suspensão de "${item.lojaNome}" para o mês de ${mesAtivo}?\n(Condição atual: "${condicaoAtual}")`)) {
+      delete item.excecoesMes[mesAtivo];
+      showToast(`Condição de "${item.lojaNome}" removida para ${mesAtivo}.`, 'info');
+    } else {
+      return;
+    }
+  } else {
+    const motivo = prompt(
+      `Defina a condição / exceção de "${item.lojaNome}" para o mês de ${mesAtivo}:\n(Ex: Loja em Reforma Geral, Manutenção, Fechamento Temporário)`,
+      'Loja em obra/manutenção'
+    );
+    if (motivo === null) return;
+    if (!motivo.trim()) {
+      showToast('Informe o motivo da condição.', 'error');
+      return;
+    }
+    item.excecoesMes[mesAtivo] = motivo.trim();
+    showToast(`Condição cadastrada para "${item.lojaNome}" em ${mesAtivo}: ${motivo.trim()}`, 'success');
+  }
+
+  salvarPlanejamento();
+
+  if (typeof db !== 'undefined' && db) {
+    try {
+      await db.collection('auditoria_planejamento').doc(lojaId).set({ excecoesMes: item.excecoesMes }, { merge: true });
+    } catch (e) {
+      console.log('Nota Firestore sync excecoesMes:', e.message);
+    }
+  }
+
+  renderConfigLojasLista();
+  renderPlanejamentoTable();
+  if (state.currentTab === 'dashboard') renderDashboardCharts();
 }
 
 async function adicionarNovaLoja() {
@@ -7281,8 +7320,8 @@ async function adicionarNovaLoja() {
   if (document.getElementById('nova-loja-nome')) document.getElementById('nova-loja-nome').value = '';
   if (document.getElementById('nova-loja-uf')) document.getElementById('nova-loja-uf').value = '';
 
-  popularSelectsLojasModal();
-  renderGestaoLojasLista();
+  popularSelectsConfigModal();
+  renderConfigLojasLista();
   populateDropdowns();
   if (state.currentTab === 'planejamento') renderPlanejamentoTable();
   if (state.currentTab === 'dashboard') renderDashboardCharts();
@@ -7310,7 +7349,7 @@ async function toggleStatusAtivoLoja(lojaId) {
     }
   }
 
-  renderGestaoLojasLista();
+  renderConfigLojasLista();
   populateDropdowns();
   if (state.currentTab === 'planejamento') renderPlanejamentoTable();
   if (state.currentTab === 'dashboard') renderDashboardCharts();
@@ -7479,7 +7518,6 @@ function aplicarEstadoInicialDeslogado() {
 
   document.getElementById('portal-tab-bar')?.classList.add('hidden');
   document.getElementById('home-portals-section')?.classList.add('hidden');
-  document.getElementById('btn-lojas-header')?.classList.add('hidden');
   document.getElementById('btn-equipe-header')?.classList.add('hidden');
   document.getElementById('btn-logout-header')?.classList.add('hidden');
   document.getElementById('btn-sync-cloud-header')?.classList.add('hidden');
@@ -7650,7 +7688,6 @@ function loginSucesso(userName, emitToast = true) {
 
   document.getElementById('portal-tab-bar')?.classList.remove('hidden');
   document.getElementById('home-portals-section')?.classList.remove('hidden');
-  document.getElementById('btn-lojas-header')?.classList.remove('hidden');
   document.getElementById('btn-equipe-header')?.classList.remove('hidden');
   document.getElementById('btn-logout-header')?.classList.remove('hidden');
   document.getElementById('btn-sync-cloud-header')?.classList.remove('hidden');
@@ -7727,9 +7764,6 @@ function switchTab(tabId) {
 }
 
 function openConfigModal() {
-  // A chave vem da configuracao gerada no build (js/firebase-config.js), e nao
-  // mais fixa aqui. Uma copia fixa neste arquivo ficaria desatualizada ao
-  // trocar de projeto e anularia o ponto de usar variavel de ambiente.
   const rawKey = (window.firebaseConfig && window.firebaseConfig.apiKey) || '';
   const maskedKey = rawKey
     ? rawKey.substring(0, 6) + "••••••••••••••••••••••••" + rawKey.substring(rawKey.length - 4)
@@ -7738,6 +7772,16 @@ function openConfigModal() {
   const keyInput = document.getElementById('cfg-api-key');
   if (keyInput) keyInput.value = maskedKey;
 
+  const mesCondInput = document.getElementById('cfg-mes-condicao');
+  if (mesCondInput && !mesCondInput.value) {
+    const activeMonth = (document.getElementById('plan-filter-month')?.value) || new Date().toISOString().slice(0, 7);
+    mesCondInput.value = activeMonth;
+  }
+
+  popularSelectsConfigModal();
+  renderConfigLojasLista();
+  switchConfigTab('lojas');
+
   document.getElementById('modal-config')?.classList.remove('hidden');
   document.getElementById('modal-config')?.classList.add('active');
 }
@@ -7745,6 +7789,14 @@ function openConfigModal() {
 function closeConfigModal() {
   document.getElementById('modal-config')?.classList.add('hidden');
   document.getElementById('modal-config')?.classList.remove('active');
+}
+
+function switchConfigTab(tabName) {
+  document.getElementById('cfg-tab-lojas')?.classList.toggle('hidden', tabName !== 'lojas');
+  document.getElementById('cfg-tab-banco')?.classList.toggle('hidden', tabName !== 'banco');
+
+  document.getElementById('cfg-tab-btn-lojas')?.classList.toggle('active', tabName === 'lojas');
+  document.getElementById('cfg-tab-btn-banco')?.classList.toggle('active', tabName === 'banco');
 }
 
 // ============================================================
@@ -7930,10 +7982,6 @@ function renderPlanejamentoTable() {
       })
     ].join('');
 
-    const iconSuspensa = isSuspensa ? 'ph-hammer' : 'ph-wrench';
-    const titleSuspensa = isSuspensa ? 'Remover suspensão desta loja no mês' : 'Marcar loja em obra / suspensa no mês';
-    const styleSuspensa = isSuspensa ? 'color:var(--sp-laranja); border-color:rgba(218,85,19,0.35);' : '';
-
     return `
       <tr style="${isInativa ? 'opacity:0.6;' : ''}">
         <td><strong>${window.escapeHtml ? window.escapeHtml(item.lojaNome) : item.lojaNome}</strong> ${isInativa ? '<span style="font-size:0.7rem; color:var(--text-muted); font-weight:700; margin-left:4px;">[INATIVA]</span>' : ''}</td>
@@ -7954,14 +8002,9 @@ function renderPlanejamentoTable() {
         </td>
         <td style="text-align:center; white-space:nowrap;">
           <span class="status-badge ${statusClass}">${statusLabel}</span>
-          <button class="icon-btn" title="${titleSuspensa}"
-                  onclick="toggleSuspensaoLojaMes('${item.id}', '${monthVal}')"
-                  style="width:32px; height:32px; margin-left:6px; vertical-align:middle; ${styleSuspensa}">
-            <i class="ph ${iconSuspensa}"></i>
-          </button>
           <button class="icon-btn" title="Registrar tentativa não realizada para esta loja"
                   onclick="registrarTentativaRapida('${item.id}')"
-                  style="width:32px; height:32px; margin-left:4px; vertical-align:middle;"
+                  style="width:32px; height:32px; margin-left:6px; vertical-align:middle;"
                   ${isInativa || isSuspensa ? 'disabled style="opacity:0.4;"' : ''}>
             <i class="ph ph-phone-x"></i>
           </button>

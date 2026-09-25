@@ -7028,19 +7028,10 @@ function setupRealtimeCloudSync() {
 // 👥 GESTÃO DE EQUIPE & SELECTS
 // ============================================================
 
-const AUDITORES_EQUIPE_BASE = [
-  'Ana Raquel',
-  'Bruna Costa',
-  'Matheus Cosme'
-];
-
-function getListaAuditoresUnificada() {
+function getListaAuditoresUnificada(targetMonth = null) {
   const set = new Set();
   
-  // 1. Auditores base da equipe (Ana Raquel, Bruna Costa, Matheus Cosme)
-  AUDITORES_EQUIPE_BASE.forEach(nome => set.add(nome));
-
-  // 2. Usuários cadastrados no Firestore (state.usuarios)
+  // 1. Usuários ativos cadastrados no Firestore (state.usuarios)
   if (Array.isArray(state.usuarios)) {
     state.usuarios.forEach(u => {
       const nome = (u.nome || u.displayName || '').trim();
@@ -7048,7 +7039,7 @@ function getListaAuditoresUnificada() {
     });
   }
 
-  // 3. Auditores que já aparecem no planejamento
+  // 2. Auditores atribuídos no planejamento
   if (Array.isArray(state.planejamento)) {
     state.planejamento.forEach(p => {
       const nome = (p.auditor || p.responsavel || '').trim();
@@ -7056,11 +7047,13 @@ function getListaAuditoresUnificada() {
     });
   }
 
-  // 4. Auditores que já aparecem no mapeamento histórico
-  if (Array.isArray(state.mapeamento)) {
+  // 3. Mapeamento histórico: se targetMonth for especificado, só inclui quem realizou auditoria naquele mês
+  if (targetMonth && Array.isArray(state.mapeamento)) {
     state.mapeamento.forEach(m => {
-      const nome = (m.auditor || m.autor || '').trim();
-      if (nome && nome !== 'Sem auditor' && nome !== 'undefined') set.add(nome);
+      if ((m.data || '').startsWith(targetMonth)) {
+        const nome = (m.auditor || m.autor || '').trim();
+        if (nome && nome !== 'Sem auditor' && nome !== 'undefined') set.add(nome);
+      }
     });
   }
 
@@ -7068,17 +7061,11 @@ function getListaAuditoresUnificada() {
 }
 
 function normalizarUsuarios() {
-  const padroes = [
-    { id: 'usr_1', nome: 'Ana Raquel', email: 'ana.raquel@sanpaologelato.com.br', cargo: 'Auditor Sênior' },
-    { id: 'usr_2', nome: 'Bruna Costa', email: 'bruna.costa@sanpaologelato.com.br', cargo: 'Auditor Sênior' },
-    { id: 'usr_4', nome: 'Matheus Cosme', email: 'matheus.cosme@sanpaologelato.com.br', cargo: 'Auditor Sênior' }
-  ];
-
   if (!state.usuarios || state.usuarios.length === 0) {
-    state.usuarios = padroes;
+    state.usuarios = Array.isArray(REAL_BACKUP_USUARIOS) ? [...REAL_BACKUP_USUARIOS] : [];
   } else {
     state.usuarios = state.usuarios.map((u, idx) => {
-      const nome = u.nome || u.displayName || 'Colaborador';
+      const nome = (u.nome || u.displayName || 'Colaborador').trim();
       const email = (u.email && u.email !== 'undefined')
         ? u.email
         : (nome.toLowerCase().replace(/\s+/g, '.') + '@sanpaologelato.com.br');
@@ -7086,6 +7073,7 @@ function normalizarUsuarios() {
       return Object.assign({}, u, {
         id: u.id || ('usr_' + (idx + 1)),
         nome: nome,
+        displayName: u.displayName || nome,
         email: email,
         cargo: u.cargo || 'Auditor'
       });
@@ -8821,8 +8809,8 @@ function renderProdutividadeEquipe() {
 
   const monthVal = document.getElementById('dash-filter-month')?.value || new Date().toISOString().slice(0, 7);
 
-  // Lista unificada de auditores da equipe
-  const auditores = getListaAuditoresUnificada();
+  // Lista unificada e dinâmica de auditores para o mês selecionado
+  const auditores = getListaAuditoresUnificada(monthVal);
 
   // Mapeamento de auditorias realizadas e tentativas por auditor no mês
   const eventosMes = (state.mapeamento || []).filter(m => (m.data || '').startsWith(monthVal));
@@ -8839,6 +8827,11 @@ function renderProdutividadeEquipe() {
     const realizadas = Math.max(concluidasPlan, concluidasMap);
 
     const tentativas = eventosMes.filter(m => (m.auditor || '').trim().toLowerCase() === nomeNorm && (m.realizada === 'NÃO' || m.realizada === 'NAO')).length;
+
+    // Se o auditor não tem lojas planejadas nem auditorias ou tentativas no mês, não deve poluir a exibição mensal
+    if (planejadas === 0 && realizadas === 0 && tentativas === 0) {
+      return;
+    }
 
     let pct = 0;
     if (planejadas > 0) {
@@ -8858,7 +8851,7 @@ function renderProdutividadeEquipe() {
   });
 
   if (nomes.length === 0) {
-    container.innerHTML = '<p style="font-size:0.8rem; color:var(--text-muted);">Nenhum auditor encontrado na equipe.</p>';
+    container.innerHTML = '<p style="font-size:0.8rem; color:var(--text-muted);">Nenhum auditor com atividades ou planejamento no período selecionado.</p>';
     return;
   }
 

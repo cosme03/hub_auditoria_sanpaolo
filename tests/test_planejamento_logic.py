@@ -5,20 +5,28 @@ Testes unitarios automatizados da logica de filtros de planejamento,
 gestao de auditores e calculo dinamico de status por mes.
 """
 
-def get_lista_auditores_unificada(state, equipe_base):
-    s = set(equipe_base)
+def get_lista_auditores_unificada(state, target_month=None):
+    s = set()
+    # 1. Usuários ativos cadastrados no Firestore (state.usuarios)
     for u in state.get('usuarios', []):
         nome = (u.get('nome') or u.get('displayName') or '').strip()
-        if nome and u.get('ativo') is not False:
+        if nome and u.get('ativo') is not False and nome != 'Colaborador':
             s.add(nome)
+            
+    # 2. Auditores que já aparecem no planejamento
     for p in state.get('planejamento', []):
         nome = (p.get('auditor') or p.get('responsavel') or '').strip()
         if nome and nome not in ('Sem auditor', 'undefined'):
             s.add(nome)
-    for m in state.get('mapeamento', []):
-        nome = (m.get('auditor') or m.get('autor') or '').strip()
-        if nome and nome not in ('Sem auditor', 'undefined'):
-            s.add(nome)
+            
+    # 3. Mapeamento histórico: se target_month for passado, apenas quem tem atividade naquele mês
+    if target_month:
+        for m in state.get('mapeamento', []):
+            if m.get('data', '').startswith(target_month):
+                nome = (m.get('auditor') or m.get('autor') or '').strip()
+                if nome and nome not in ('Sem auditor', 'undefined'):
+                    s.add(nome)
+                    
     return sorted(list(s))
 
 
@@ -75,12 +83,12 @@ def filtrar_planejamento(state, search='', regional='', auditor='', month_val=''
     return filtrados
 
 
-def calcular_produtividade_equipe(state, target_month, equipe_base):
-    auditores = get_lista_auditores_unificada(state, equipe_base)
+def calcular_produtividade_equipe(state, target_month):
+    candidatos = get_lista_auditores_unificada(state, target_month)
     eventos_mes = [m for m in state.get('mapeamento', []) if m.get('data', '').startswith(target_month)]
     
     res = {}
-    for nome in auditores:
+    for nome in candidatos:
         nome_norm = nome.strip().lower()
         lojas_auditor = [p for p in state.get('planejamento', []) if (p.get('auditor') or '').strip().lower() == nome_norm]
         planejadas = len(lojas_auditor)
@@ -91,6 +99,10 @@ def calcular_produtividade_equipe(state, target_month, equipe_base):
         
         tentativas = sum(1 for m in eventos_mes if (m.get('auditor') or '').strip().lower() == nome_norm and m.get('realizada') in ('NÃO', 'NAO'))
         
+        # Se o auditor não tem lojas planejadas nem atividade no mês, NÃO polui o dashboard
+        if planejadas == 0 and realizadas == 0 and tentativas == 0:
+            continue
+            
         pct = 0
         if planejadas > 0:
             pct = min(100, round((realizadas / planejadas) * 100))
@@ -134,15 +146,14 @@ def calcular_dados_rosca_auditor(state, target_month):
 
 
 def run_tests():
-    print("--- Executando Testes Unitarios de Planejamento e Dashboard ---")
+    print("--- Executando Testes Unitarios de Planejamento e Dashboard Dinâmico ---")
     
-    equipe_base = ['Ana Raquel', 'Bruna Costa', 'Matheus Cosme']
-    
-    # Teste 1: Preservacao de Bruna Costa e auditores do banco
     state = {
         'usuarios': [
             {'id': 'u1', 'displayName': 'Matheus Cosme', 'ativo': True},
-            {'id': 'u2', 'displayName': 'Ana Raquel', 'ativo': True}
+            {'id': 'u2', 'displayName': 'Ana Raquel', 'ativo': True},
+            {'id': 'u3', 'displayName': 'Bruna Costa', 'ativo': True},
+            {'id': 'u4', 'displayName': 'Usuario Desativado', 'ativo': False}
         ],
         'planejamento': [
             {'id': 'p1', 'lojaNome': 'Loja 1', 'auditor': 'Bruna Costa', 'proximaPrevista': '2026-09-25'},
@@ -153,16 +164,20 @@ def run_tests():
             {'id': 'p6', 'lojaNome': 'Loja 6', 'auditor': 'Matheus Cosme', 'proximaPrevista': '2026-09-28'}
         ],
         'mapeamento': [
-            {'id': 'm1', 'lojaNome': 'Loja 3', 'auditor': 'Matheus Cosme', 'realizada': 'SIM', 'data': '2026-09-10'}
+            {'id': 'm1', 'lojaNome': 'Loja 3', 'auditor': 'Matheus Cosme', 'realizada': 'SIM', 'data': '2026-09-10'},
+            # Registro historico antigo de auditor inativo (ex: Fernanda Teles em janeiro)
+            {'id': 'm0', 'lojaNome': 'Loja Antiga', 'auditor': 'Fernanda Teles', 'realizada': 'SIM', 'data': '2025-01-15'}
         ]
     }
     
-    auditores = get_lista_auditores_unificada(state, equipe_base)
-    assert 'Bruna Costa' in auditores, "FALHA: Bruna Costa deve estar na lista unificada de auditores!"
-    assert 'Matheus Cosme' in auditores, "FALHA: Matheus Cosme deve estar na lista!"
-    assert 'Gabriel Pimentel' not in auditores, "FALHA: Gabriel Pimentel não deve estar na lista se não estiver no banco!"
-    assert 'Paulo Victor' not in auditores, "FALHA: Paulo Victor não deve estar na lista se não estiver no banco!"
-    print("OK - Teste 1 Passou: Lista unificada preserva auditores do banco e não inclui Gabriel/Paulo.")
+    # Teste 1: Lista dinâmica sem mock fixo
+    auditores = get_lista_auditores_unificada(state)
+    assert 'Bruna Costa' in auditores, "FALHA: Bruna Costa deve estar na lista vinda do banco!"
+    assert 'Matheus Cosme' in auditores, "FALHA: Matheus Cosme deve estar na lista vinda do banco!"
+    assert 'Ana Raquel' in auditores, "FALHA: Ana Raquel deve estar na lista vinda do banco!"
+    assert 'Usuario Desativado' not in auditores, "FALHA: Usuário inativo (ativo=False) NÃO deve aparecer na lista!"
+    assert 'Fernanda Teles' not in auditores, "FALHA: Auditor histórico sem conta no banco NÃO deve aparecer nos selects gerais!"
+    print("OK - Teste 1 Passou: Lista unificada é 100% dinâmica do banco e exclui usuários inativos/desativados.")
     
     # Teste 2: Filtro por Bruna Costa
     res_bruna = filtrar_planejamento(state, auditor='Bruna Costa')
@@ -175,33 +190,32 @@ def run_tests():
     print("OK - Teste 3 Passou: Filtro de lojas sem auditor retorna lojas disponiveis para atribuicao.")
     
     # Teste 4: Status no Mes Atual (Setembro) vs Mes Futuro (Outubro)
-    # Loja 4: proximaPrevista em 2026-09-15 (passado em relacao a 2026-09-21 e sem visita SIM)
     status_set = get_status_loja_planejamento(state['planejamento'][3], '2026-09', state, '2026-09-21')
     assert status_set == 'ATRASADA', f"FALHA: Loja 4 em setembro deve ser ATRASADA, deu {status_set}"
     
-    # Em Outubro, como a data e de setembro (mes anterior), para Outubro ela e PENDENTE
     status_out = get_status_loja_planejamento(state['planejamento'][3], '2026-10', state, '2026-09-21')
     assert status_out == 'PENDENTE', f"FALHA: Loja 4 em outubro deve ser PENDENTE, deu {status_out}"
     print("OK - Teste 4 Passou: Status de loja atrasada em setembro vira pendente de agendamento em outubro.")
     
     # Teste 5: Filtro Restantes em Setembro
-    # Loja 1 (Pendente), Loja 2 (Pendente), Loja 4 (Atrasada), Loja 5 (Atrasada), Loja 6 (Pendente) -> 5 restantes (Loja 3 é CONCLUIDA)
     restantes_set = filtrar_planejamento(state, month_val='2026-09', filter_status='RESTANTES')
     assert len(restantes_set) == 5, f"FALHA: 5 lojas devem ser restantes no mes, retornou {len(restantes_set)}"
     print("OK - Teste 5 Passou: Filtro de Restantes lista todas as lojas que faltam realizar no mes.")
     
-    # Teste 6: Produtividade da Equipe calculada com base nas lojas atribuídas
-    prod = calcular_produtividade_equipe(state, '2026-09', equipe_base)
-    # Matheus Cosme: 4 planejadas (Lojas 3, 4, 5, 6), 1 realizada (Loja 3) -> 1/4 = 25% (e NÃO 100%)
-    assert prod['Matheus Cosme']['planejadas'] == 4, f"Esperado 4 planejadas para Matheus, deu {prod['Matheus Cosme']['planejadas']}"
-    assert prod['Matheus Cosme']['realizadas'] == 1, f"Esperado 1 realizada para Matheus, deu {prod['Matheus Cosme']['realizadas']}"
-    assert prod['Matheus Cosme']['pct'] == 25, f"Esperado 25% para Matheus, deu {prod['Matheus Cosme']['pct']}%"
+    # Teste 6: Produtividade da Equipe no Mês de Setembro (Sem Fernanda Teles fantasma)
+    prod_set = calcular_produtividade_equipe(state, '2026-09')
+    assert 'Matheus Cosme' in prod_set
+    assert prod_set['Matheus Cosme']['planejadas'] == 4
+    assert prod_set['Matheus Cosme']['realizadas'] == 1
+    assert prod_set['Matheus Cosme']['pct'] == 25
     
-    # Bruna Costa: 1 planejada, 0 realizadas -> 0%
-    assert prod['Bruna Costa']['planejadas'] == 1
-    assert prod['Bruna Costa']['realizadas'] == 0
-    assert prod['Bruna Costa']['pct'] == 0
-    print("OK - Teste 6 Passou: Produtividade de Matheus Cosme calculada corretamente em 25% (1 de 4) e Bruna Costa em 0%.")
+    assert 'Bruna Costa' in prod_set
+    assert prod_set['Bruna Costa']['planejadas'] == 1
+    assert prod_set['Bruna Costa']['realizadas'] == 0
+    assert prod_set['Bruna Costa']['pct'] == 0
+    
+    assert 'Fernanda Teles' not in prod_set, "FALHA: Fernanda Teles NÃO deve aparecer no dashboard de setembro!"
+    print("OK - Teste 6 Passou: Produtividade de setembro calcula Matheus (25%), Bruna (0%) e exclui Fernanda Teles.")
     
     # Teste 7: Gráfico de Rosca com Lojas Restantes
     labels, data = calcular_dados_rosca_auditor(state, '2026-09')
@@ -214,4 +228,5 @@ def run_tests():
 
 if __name__ == '__main__':
     run_tests()
+
 

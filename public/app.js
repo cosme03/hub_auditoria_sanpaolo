@@ -7117,20 +7117,205 @@ function populateDropdowns() {
 
   const dashLoja = document.getElementById('dash-filter-loja');
   if (dashLoja) {
+function populateDropdowns() {
+  ['plan-filter-regional', 'dash-filter-regional'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const curVal = el.value;
+    el.innerHTML = '<option value="">Todas as Regionais (KA)</option>';
+    REGIONAIS_OFICIAIS.forEach(r => el.add(new Option(r, r)));
+    if (curVal) el.value = curVal;
+  });
+
+  // Lista dinâmica de lojas baseada em state.planejamento com fallback para LOJAS_KA_MASTER
+  let lojasDisponiveis = [];
+  if (Array.isArray(state.planejamento) && state.planejamento.length > 0) {
+    lojasDisponiveis = state.planejamento.map(p => ({
+      nome: p.lojaNome,
+      ativa: p.ativa !== false
+    })).sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
+  } else {
+    lojasDisponiveis = LOJAS_KA_MASTER.map(l => ({ nome: l.nome, ativa: true }));
+  }
+
+  const dashLoja = document.getElementById('dash-filter-loja');
+  if (dashLoja) {
+    const curVal = dashLoja.value;
     dashLoja.innerHTML = '<option value="">Todas as Lojas (KA)</option>';
-    LOJAS_KA_MASTER.forEach(l => dashLoja.add(new Option(l.nome, l.nome)));
+    lojasDisponiveis.forEach(l => {
+      const label = l.nome + (l.ativa ? '' : ' [Inativa]');
+      dashLoja.add(new Option(label, l.nome));
+    });
+    if (curVal) dashLoja.value = curVal;
   }
 
   const mapLoja = document.getElementById('map-select-loja');
   const notaLoja = document.getElementById('nota-select-loja');
   if (mapLoja) {
+    const curVal = mapLoja.value;
     mapLoja.innerHTML = '';
-    LOJAS_KA_MASTER.forEach(l => mapLoja.add(new Option(l.nome, l.nome)));
+    // Apenas lojas ativas para novo mapeamento
+    lojasDisponiveis.filter(l => l.ativa).forEach(l => mapLoja.add(new Option(l.nome, l.nome)));
+    if (curVal) mapLoja.value = curVal;
   }
   if (notaLoja) {
+    const curVal = notaLoja.value;
     notaLoja.innerHTML = '';
-    LOJAS_KA_MASTER.forEach(l => notaLoja.add(new Option(l.nome, l.nome)));
+    lojasDisponiveis.filter(l => l.ativa).forEach(l => notaLoja.add(new Option(l.nome, l.nome)));
+    if (curVal) notaLoja.value = curVal;
   }
+}
+
+function openModalLojas() {
+  popularSelectsLojasModal();
+  renderGestaoLojasLista();
+  document.getElementById('modal-lojas')?.classList.remove('hidden');
+  document.getElementById('modal-lojas')?.classList.add('active');
+}
+
+function closeModalLojas() {
+  document.getElementById('modal-lojas')?.classList.add('hidden');
+  document.getElementById('modal-lojas')?.classList.remove('active');
+}
+
+function popularSelectsLojasModal() {
+  const regSel = document.getElementById('nova-loja-regional');
+  if (regSel) {
+    regSel.innerHTML = '<option value="">Regional...</option>';
+    REGIONAIS_OFICIAIS.forEach(r => regSel.add(new Option(r, r)));
+  }
+
+  const audSel = document.getElementById('nova-loja-auditor');
+  if (audSel) {
+    audSel.innerHTML = '<option value="">Auditor Padrão...</option>';
+    getListaAuditoresUnificada().forEach(a => audSel.add(new Option(a, a)));
+  }
+}
+
+function renderGestaoLojasLista() {
+  const container = document.getElementById('gestao-lojas-lista');
+  if (!container) return;
+
+  const termo = (document.getElementById('busca-gestao-lojas')?.value || '').toLowerCase().trim();
+
+  const lojas = (state.planejamento || []).filter(p => {
+    return (p.lojaNome || '').toLowerCase().includes(termo)
+        || (p.regional || '').toLowerCase().includes(termo)
+        || (p.uf || '').toLowerCase().includes(termo);
+  });
+
+  if (lojas.length === 0) {
+    container.innerHTML = '<p style="font-size:0.8rem; color:var(--text-muted); text-align:center; padding:12px;">Nenhuma loja encontrada.</p>';
+    return;
+  }
+
+  container.innerHTML = lojas.map(l => {
+    const isAtiva = l.ativa !== false;
+    const badge = isAtiva
+      ? '<span class="status-badge concluida" style="font-size:0.68rem; padding:2px 8px;">Ativa</span>'
+      : '<span class="status-badge inativa" style="font-size:0.68rem; padding:2px 8px;">Inativa</span>';
+    const btnTexto = isAtiva ? 'Desativar' : 'Reativar';
+    const btnIcon = isAtiva ? 'ph-power' : 'ph-arrow-clockwise';
+    const btnCor = isAtiva ? 'var(--sp-red)' : 'var(--sp-pistache)';
+
+    return `
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:var(--bg-surface-2); border:1px solid var(--border-color); border-radius:var(--r-md); margin-bottom:4px;">
+        <div>
+          <strong style="font-size:0.84rem; color:var(--text-main);">${window.escapeHtml ? window.escapeHtml(l.lojaNome) : l.lojaNome}</strong>
+          <div style="font-size:0.75rem; color:var(--text-muted); display:flex; gap:8px; align-items:center; margin-top:2px;">
+            <span>${l.regional || '-'} · ${l.uf || '-'}</span>
+            <span>Auditor: ${l.auditor || 'Sem auditor'}</span>
+            ${badge}
+          </div>
+        </div>
+        <button class="icon-btn" style="width:auto; padding:4px 10px; font-size:0.75rem; color:${btnCor}; gap:4px;" onclick="toggleStatusAtivoLoja('${l.id}')">
+          <i class="ph ${btnIcon}"></i> ${btnTexto}
+        </button>
+      </div>
+    `;
+  }).join('');
+}
+
+async function adicionarNovaLoja() {
+  const nome = (document.getElementById('nova-loja-nome')?.value || '').trim();
+  const regional = document.getElementById('nova-loja-regional')?.value;
+  const uf = (document.getElementById('nova-loja-uf')?.value || '').trim().toUpperCase();
+  const auditor = document.getElementById('nova-loja-auditor')?.value || '';
+
+  if (!nome || !regional || !uf) {
+    showToast('Informe o nome da loja, a regional e a UF.', 'error');
+    return;
+  }
+
+  if ((state.planejamento || []).some(p => p.lojaNome && p.lojaNome.toLowerCase() === nome.toLowerCase())) {
+    showToast('Já existe uma loja cadastrada com este nome.', 'error');
+    return;
+  }
+
+  const novoId = 'PLAN_CUSTOM_' + Date.now();
+  const novaLoja = {
+    id: novoId,
+    lojaId: String((state.planejamento || []).length + 1),
+    lojaNome: nome,
+    nomeBi: nome,
+    regional: regional,
+    uf: uf,
+    auditor: auditor,
+    ativa: true,
+    proximaPrevista: '',
+    ultimaData: '',
+    excecoesMes: {}
+  };
+
+  state.planejamento.push(novaLoja);
+  salvarPlanejamento();
+
+  if (typeof db !== 'undefined' && db) {
+    try {
+      await db.collection('auditoria_planejamento').doc(novoId).set(novaLoja);
+    } catch (e) {
+      console.log('Nota Firestore sync nova loja:', e.message);
+    }
+  }
+
+  if (document.getElementById('nova-loja-nome')) document.getElementById('nova-loja-nome').value = '';
+  if (document.getElementById('nova-loja-uf')) document.getElementById('nova-loja-uf').value = '';
+
+  popularSelectsLojasModal();
+  renderGestaoLojasLista();
+  populateDropdowns();
+  if (state.currentTab === 'planejamento') renderPlanejamentoTable();
+  if (state.currentTab === 'dashboard') renderDashboardCharts();
+
+  showToast(`Loja "${nome}" cadastrada com sucesso!`, 'success');
+}
+
+async function toggleStatusAtivoLoja(lojaId) {
+  const item = (state.planejamento || []).find(p => p.id === lojaId);
+  if (!item) return;
+
+  const novoStatus = item.ativa === false ? true : false;
+  const acao = novoStatus ? 'reativar' : 'desativar';
+
+  if (!confirm(`Deseja realmente ${acao} a loja "${item.lojaNome}"?`)) return;
+
+  item.ativa = novoStatus;
+  salvarPlanejamento();
+
+  if (typeof db !== 'undefined' && db) {
+    try {
+      await db.collection('auditoria_planejamento').doc(lojaId).set({ ativa: novoStatus }, { merge: true });
+    } catch (e) {
+      console.log('Nota Firestore sync status loja:', e.message);
+    }
+  }
+
+  renderGestaoLojasLista();
+  populateDropdowns();
+  if (state.currentTab === 'planejamento') renderPlanejamentoTable();
+  if (state.currentTab === 'dashboard') renderDashboardCharts();
+
+  showToast(`Loja "${item.lojaNome}" foi ${novoStatus ? 'reativada' : 'desativada'}.`, 'info');
 }
 
 function openModalUsuarios() {
@@ -7294,6 +7479,7 @@ function aplicarEstadoInicialDeslogado() {
 
   document.getElementById('portal-tab-bar')?.classList.add('hidden');
   document.getElementById('home-portals-section')?.classList.add('hidden');
+  document.getElementById('btn-lojas-header')?.classList.add('hidden');
   document.getElementById('btn-equipe-header')?.classList.add('hidden');
   document.getElementById('btn-logout-header')?.classList.add('hidden');
   document.getElementById('btn-sync-cloud-header')?.classList.add('hidden');
@@ -7464,6 +7650,7 @@ function loginSucesso(userName, emitToast = true) {
 
   document.getElementById('portal-tab-bar')?.classList.remove('hidden');
   document.getElementById('home-portals-section')?.classList.remove('hidden');
+  document.getElementById('btn-lojas-header')?.classList.remove('hidden');
   document.getElementById('btn-equipe-header')?.classList.remove('hidden');
   document.getElementById('btn-logout-header')?.classList.remove('hidden');
   document.getElementById('btn-sync-cloud-header')?.classList.remove('hidden');
@@ -7571,10 +7758,20 @@ function closeConfigModal() {
  * - PENDENTE: Se a data prevista é futura no mês, se não há data ou se pertence a outro mês ainda não planejado
  */
 function getStatusLojaPlanejamento(item, targetMonth = null) {
+  // 0. Se a loja está desativada na rede
+  if (item.ativa === false) {
+    return 'INATIVA';
+  }
+
   const hoje = new Date().toISOString().slice(0, 10);
   const activeMonth = targetMonth || (typeof document !== 'undefined' && (document.getElementById('plan-filter-month')?.value || document.getElementById('map-filter-month')?.value)) || hoje.slice(0, 7);
 
-  // 1. Verifica se houve visita realizada com SUCESSO (SIM) no mês ativo
+  // 1. Se a loja possui suspensão/obra no mês ativo
+  if (item.excecoesMes && item.excecoesMes[activeMonth]) {
+    return 'SUSPENSA';
+  }
+
+  // 2. Verifica se houve visita realizada com SUCESSO (SIM) no mês ativo
   const teveAuditoriaNoMes = (state.mapeamento || []).some(m => 
     m.lojaNome === item.lojaNome && 
     (m.realizada === 'SIM' || m.realizada === 'Sim') && 
@@ -7586,7 +7783,7 @@ function getStatusLojaPlanejamento(item, targetMonth = null) {
     return 'CONCLUIDA';
   }
 
-  // 2. Se a data prevista pertence ao mês ativo de referência
+  // 3. Se a data prevista pertence ao mês ativo de referência
   if (item.proximaPrevista && item.proximaPrevista.startsWith(activeMonth)) {
     if (item.proximaPrevista < hoje) {
       return 'ATRASADA';
@@ -7594,7 +7791,7 @@ function getStatusLojaPlanejamento(item, targetMonth = null) {
     return 'PENDENTE';
   }
 
-  // 3. Se não tem data no mês de referência (ou tem data antiga de mês passado), fica PENDENTE para agendamento no mês ativo
+  // 4. Se não tem data no mês de referência (ou tem data antiga de mês passado), fica PENDENTE para agendamento no mês ativo
   return 'PENDENTE';
 }
 
@@ -7616,7 +7813,14 @@ function getUltimaAuditoriaDaLoja(lojaNome, fallbackData = null) {
 
 function setFilterStatus(status) {
   state.filterStatus = status;
-  const statusMap = { TODOS: 'todos', REALIZADAS: 'realizadas', RESTANTES: 'restantes', ATRASADAS: 'atrasadas', PENDENTE_TOTAL: 'pendentetotal' };
+  const statusMap = {
+    TODOS: 'todos',
+    REALIZADAS: 'realizadas',
+    RESTANTES: 'restantes',
+    ATRASADAS: 'atrasadas',
+    PENDENTE_TOTAL: 'pendentetotal',
+    SUSPENSAS: 'suspensas'
+  };
   Object.keys(statusMap).forEach(s => {
     document.getElementById('btn-status-' + statusMap[s])?.classList.remove('active');
   });
@@ -7683,9 +7887,10 @@ function renderPlanejamentoTable() {
 
     let matchStatus = true;
     if (state.filterStatus === 'REALIZADAS') matchStatus = (currentCalculatedStatus === 'CONCLUIDA');
-    if (state.filterStatus === 'RESTANTES') matchStatus = (currentCalculatedStatus !== 'CONCLUIDA');
+    if (state.filterStatus === 'RESTANTES') matchStatus = (currentCalculatedStatus !== 'CONCLUIDA' && currentCalculatedStatus !== 'SUSPENSA' && currentCalculatedStatus !== 'INATIVA');
     if (state.filterStatus === 'ATRASADAS') matchStatus = (currentCalculatedStatus === 'ATRASADA');
     if (state.filterStatus === 'PENDENTE_TOTAL') matchStatus = (currentCalculatedStatus === 'PENDENTE');
+    if (state.filterStatus === 'SUSPENSAS') matchStatus = (currentCalculatedStatus === 'SUSPENSA');
 
     let matchCriticas = true;
     if (state.filtroApenasCriticas) {
@@ -7700,11 +7905,18 @@ function renderPlanejamentoTable() {
     return;
   }
 
+  const activeMonthStr = monthVal || new Date().toISOString().slice(0, 7);
+
   tbody.innerHTML = filtrados.map(item => {
     const calculatedStatus = getStatusLojaPlanejamento(item, monthVal || undefined);
     const isConcluida = calculatedStatus === 'CONCLUIDA';
-    const statusClass = isConcluida ? 'concluida' : (calculatedStatus === 'ATRASADA' ? 'atrasada' : 'pendente');
-    const statusLabel = isConcluida ? 'Realizada' : (calculatedStatus === 'ATRASADA' ? 'Atrasada' : 'Pendente');
+    const isSuspensa = calculatedStatus === 'SUSPENSA';
+    const isAtrasada = calculatedStatus === 'ATRASADA';
+    const isInativa = calculatedStatus === 'INATIVA';
+
+    const statusClass = isConcluida ? 'concluida' : (isSuspensa ? 'suspensa' : (isAtrasada ? 'atrasada' : (isInativa ? 'inativa' : 'pendente')));
+    const motivoSuspensa = (item.excecoesMes && item.excecoesMes[activeMonthStr]) || 'Em Obra';
+    const statusLabel = isConcluida ? 'Realizada' : (isSuspensa ? `Em Obra (${motivoSuspensa})` : (isAtrasada ? 'Atrasada' : (isInativa ? 'Inativa' : 'Pendente')));
 
     // Opções de auditores disponíveis para cada loja
     const opcoes = listaAuditores.slice();
@@ -7718,33 +7930,87 @@ function renderPlanejamentoTable() {
       })
     ].join('');
 
+    const iconSuspensa = isSuspensa ? 'ph-hammer' : 'ph-wrench';
+    const titleSuspensa = isSuspensa ? 'Remover suspensão desta loja no mês' : 'Marcar loja em obra / suspensa no mês';
+    const styleSuspensa = isSuspensa ? 'color:var(--sp-laranja); border-color:rgba(218,85,19,0.35);' : '';
+
     return `
-      <tr>
-        <td><strong>${item.lojaNome}</strong></td>
+      <tr style="${isInativa ? 'opacity:0.6;' : ''}">
+        <td><strong>${window.escapeHtml ? window.escapeHtml(item.lojaNome) : item.lojaNome}</strong> ${isInativa ? '<span style="font-size:0.7rem; color:var(--text-muted); font-weight:700; margin-left:4px;">[INATIVA]</span>' : ''}</td>
         <td><span class="status-badge andamento">${item.regional || '-'}</span></td>
         <td>${getUltimaAuditoriaDaLoja(item.lojaNome, item.ultimaData || item.ultimaAuditoria)}</td>
         <td>
           <input type="date" class="form-ctrl" style="width:145px; padding:6px 10px; font-size:0.8rem;" 
                  value="${item.proximaPrevista || ''}" 
-                 onchange="alterarDataPrevistaPlanejamento('${item.id}', this.value)" />
+                 onchange="alterarDataPrevistaPlanejamento('${item.id}', this.value)" 
+                 ${isInativa || isSuspensa ? 'disabled' : ''} />
         </td>
         <td>
           <select class="form-ctrl" style="width:170px; padding:6px 10px; font-size:0.8rem;" 
-                  onchange="alterarAuditorLoja('${item.id}', this.value)">
+                  onchange="alterarAuditorLoja('${item.id}', this.value)"
+                  ${isInativa ? 'disabled' : ''}>
             ${optionsAuditor}
           </select>
         </td>
         <td style="text-align:center; white-space:nowrap;">
           <span class="status-badge ${statusClass}">${statusLabel}</span>
+          <button class="icon-btn" title="${titleSuspensa}"
+                  onclick="toggleSuspensaoLojaMes('${item.id}', '${monthVal}')"
+                  style="width:32px; height:32px; margin-left:6px; vertical-align:middle; ${styleSuspensa}">
+            <i class="ph ${iconSuspensa}"></i>
+          </button>
           <button class="icon-btn" title="Registrar tentativa não realizada para esta loja"
                   onclick="registrarTentativaRapida('${item.id}')"
-                  style="width:32px; height:32px; margin-left:8px; vertical-align:middle;">
+                  style="width:32px; height:32px; margin-left:4px; vertical-align:middle;"
+                  ${isInativa || isSuspensa ? 'disabled style="opacity:0.4;"' : ''}>
             <i class="ph ph-phone-x"></i>
           </button>
         </td>
       </tr>
     `;
   }).join('');
+}
+
+async function toggleSuspensaoLojaMes(lojaId, monthVal) {
+  const item = (state.planejamento || []).find(p => p.id === lojaId);
+  if (!item) return;
+
+  const activeMonth = monthVal || (document.getElementById('plan-filter-month')?.value) || new Date().toISOString().slice(0, 7);
+  if (!item.excecoesMes) item.excecoesMes = {};
+
+  if (item.excecoesMes[activeMonth]) {
+    if (confirm(`Remover a suspensão de "${item.lojaNome}" para o mês de ${activeMonth}?`)) {
+      delete item.excecoesMes[activeMonth];
+      showToast(`Suspensão de "${item.lojaNome}" removida para ${activeMonth}.`, 'info');
+    } else {
+      return;
+    }
+  } else {
+    const motivo = prompt(
+      `Motivo da suspensão / impedimento de "${item.lojaNome}" no mês de ${activeMonth}:\n(Ex: Loja em reforma geral, manutenção de equipamento, fechamento temporário)`,
+      'Loja em obra/manutenção'
+    );
+    if (motivo === null) return;
+    if (!motivo.trim()) {
+      showToast('Informe o motivo da suspensão.', 'error');
+      return;
+    }
+    item.excecoesMes[activeMonth] = motivo.trim();
+    showToast(`"${item.lojaNome}" marcada como suspensa em ${activeMonth} (${motivo.trim()}).`, 'warning');
+  }
+
+  salvarPlanejamento();
+
+  if (typeof db !== 'undefined' && db) {
+    try {
+      await db.collection('auditoria_planejamento').doc(lojaId).set({ excecoesMes: item.excecoesMes }, { merge: true });
+    } catch (e) {
+      console.log('Nota Firestore sync excecoesMes:', e.message);
+    }
+  }
+
+  if (state.currentTab === 'planejamento') renderPlanejamentoTable();
+  if (state.currentTab === 'dashboard') renderDashboardCharts();
 }
 
 // Atalho do Planejamento para o Mapeamento.
@@ -8749,11 +9015,11 @@ async function excluirDemandaDetalhe() {
 
 function setDashFilterStatus(status) {
   state.dashFilterStatus = status;
-  ['TODOS', 'RESOLVIDO', 'PENDENTE'].forEach(s => {
-    const idMap = { TODOS: 'todos', RESOLVIDO: 'resolvido', PENDENTE: 'pendente' };
+  ['TODOS', 'RESOLVIDO', 'PENDENTE', 'SUSPENSA'].forEach(s => {
+    const idMap = { TODOS: 'todos', RESOLVIDO: 'resolvido', PENDENTE: 'pendente', SUSPENSA: 'suspensas' };
     document.getElementById('dash-btn-' + idMap[s])?.classList.remove('active');
   });
-  const idMap = { TODOS: 'todos', RESOLVIDO: 'resolvido', PENDENTE: 'pendente' };
+  const idMap = { TODOS: 'todos', RESOLVIDO: 'resolvido', PENDENTE: 'pendente', SUSPENSA: 'suspensas' };
   document.getElementById('dash-btn-' + idMap[status])?.classList.add('active');
 
   renderDashboardCharts();
@@ -8765,8 +9031,9 @@ function getDashFilteredPlanejamento() {
   const loja = document.getElementById('dash-filter-loja')?.value || '';
 
   return (state.planejamento || []).filter(item => {
-    // No modo mensal do Dashboard, todas as lojas da rede pertencem ao universo avaliado.
-    // O status (CONCLUIDA, ATRASADA, PENDENTE) é calculado dinamicamente por getStatusLojaPlanejamento(item, monthVal).
+    // Lojas desativadas na rede não entram no cálculo de auditoria do período
+    if (item.ativa === false) return false;
+
     let matchMonth = true;
 
     const matchReg = !regional || item.regional === regional;
@@ -8776,7 +9043,8 @@ function getDashFilteredPlanejamento() {
 
     let matchStatus = true;
     if (state.dashFilterStatus === 'RESOLVIDO') matchStatus = (currentCalculatedStatus === 'CONCLUIDA');
-    if (state.dashFilterStatus === 'PENDENTE') matchStatus = (currentCalculatedStatus !== 'CONCLUIDA');
+    if (state.dashFilterStatus === 'PENDENTE') matchStatus = (currentCalculatedStatus !== 'CONCLUIDA' && currentCalculatedStatus !== 'SUSPENSA');
+    if (state.dashFilterStatus === 'SUSPENSA') matchStatus = (currentCalculatedStatus === 'SUSPENSA');
 
     return matchMonth && matchReg && matchLoja && matchStatus;
   });
@@ -8818,8 +9086,14 @@ function renderProdutividadeEquipe() {
   const porAuditor = {};
   auditores.forEach(nome => {
     const nomeNorm = nome.trim().toLowerCase();
-    const lojasDoAuditor = (state.planejamento || []).filter(p => (p.auditor || '').trim().toLowerCase() === nomeNorm);
-    const planejadas = lojasDoAuditor.length;
+    const lojasDoAuditor = (state.planejamento || []).filter(p => 
+      p.ativa !== false && 
+      (p.auditor || '').trim().toLowerCase() === nomeNorm
+    );
+    
+    // Lojas planejadas para o auditor no mês (exclui lojas suspensas/em obra)
+    const lojasAuditaveis = lojasDoAuditor.filter(p => getStatusLojaPlanejamento(p, monthVal) !== 'SUSPENSA');
+    const planejadas = lojasAuditaveis.length;
 
     // Lojas concluídas pelo auditor no mês
     const concluidasPlan = lojasDoAuditor.filter(p => getStatusLojaPlanejamento(p, monthVal) === 'CONCLUIDA').length;
@@ -8895,8 +9169,11 @@ function renderDashboardCharts() {
   const totalLojasNoPeriodo = filtrados.length;
   const concluidasCount = filtrados.filter(p => getStatusLojaPlanejamento(p, monthVal) === 'CONCLUIDA').length;
   const atrasadasCount = filtrados.filter(p => getStatusLojaPlanejamento(p, monthVal) === 'ATRASADA').length;
-  const pendentesCount = Math.max(0, totalLojasNoPeriodo - concluidasCount);
-  const coberturaPct = totalLojasNoPeriodo > 0 ? Math.round((concluidasCount / totalLojasNoPeriodo) * 100) : 0;
+  const suspensasCount = filtrados.filter(p => getStatusLojaPlanejamento(p, monthVal) === 'SUSPENSA').length;
+  
+  const totalAuditaveis = Math.max(0, totalLojasNoPeriodo - suspensasCount);
+  const pendentesCount = Math.max(0, totalAuditaveis - concluidasCount);
+  const coberturaPct = totalAuditaveis > 0 ? Math.round((concluidasCount / totalAuditaveis) * 100) : 0;
 
   const concEl = document.getElementById('dash-concluidas');
   const pendEl = document.getElementById('dash-pendentes');
@@ -8989,8 +9266,13 @@ function renderChartAuditorRoscaDinamico(filtrados) {
     .sort((a, b) => (porAuditor[b] - porAuditor[a]) || a.localeCompare(b, 'pt-BR'));
   const counts = auditoresList.map(aud => porAuditor[aud]);
 
-  // Contagem de lojas restantes / pendentes no filtro selecionado do mês
-  const restantesCount = (filtrados || []).filter(p => getStatusLojaPlanejamento(p, monthVal) !== 'CONCLUIDA').length;
+  // Contagem de lojas restantes (pendentes auditáveis, excluindo concluídas e suspensas)
+  const restantesCount = (filtrados || []).filter(p => {
+    const st = getStatusLojaPlanejamento(p, monthVal);
+    return st !== 'CONCLUIDA' && st !== 'SUSPENSA' && st !== 'INATIVA';
+  }).length;
+
+  const suspensasCount = (filtrados || []).filter(p => getStatusLojaPlanejamento(p, monthVal) === 'SUSPENSA').length;
 
   const chartLabels = [...auditoresList];
   const chartData = [...counts];
@@ -9002,6 +9284,12 @@ function renderChartAuditorRoscaDinamico(filtrados) {
     chartLabels.push('Lojas Restantes');
     chartData.push(restantesCount);
     bgColors.push('#DA5513');
+  }
+
+  if (suspensasCount > 0) {
+    chartLabels.push('Em Obra / Suspensas');
+    chartData.push(suspensasCount);
+    bgColors.push('#8C7361');
   }
 
   if (chartData.length === 0 || chartData.every(v => v === 0)) {

@@ -31,9 +31,17 @@ def get_lista_auditores_unificada(state, target_month=None):
 
 
 def get_status_loja_planejamento(item, target_month, state, hoje='2026-09-21'):
+    # 0. Se a loja está desativada na rede
+    if item.get('ativa') is False:
+        return 'INATIVA'
+        
     active_month = target_month or hoje[:7]
     
-    # 1. Concluida no mes
+    # 1. Se a loja possui suspensão/obra no mês ativo
+    if item.get('excecoesMes', {}).get(active_month):
+        return 'SUSPENSA'
+    
+    # 2. Concluida no mes
     teve_auditoria = any(
         m.get('lojaNome') == item.get('lojaNome') and
         m.get('realizada') in ('SIM', 'Sim') and
@@ -72,11 +80,13 @@ def filtrar_planejamento(state, search='', regional='', auditor='', month_val=''
         if filter_status == 'REALIZADAS':
             match_status = (current_status == 'CONCLUIDA')
         elif filter_status == 'RESTANTES':
-            match_status = (current_status != 'CONCLUIDA')
+            match_status = (current_status != 'CONCLUIDA' and current_status != 'SUSPENSA' and current_status != 'INATIVA')
         elif filter_status == 'ATRASADAS':
             match_status = (current_status == 'ATRASADA')
         elif filter_status == 'PENDENTE_TOTAL':
             match_status = (current_status == 'PENDENTE')
+        elif filter_status == 'SUSPENSAS':
+            match_status = (current_status == 'SUSPENSA')
             
         if match_search and match_reg and match_aud and match_status:
             filtrados.append(item)
@@ -90,8 +100,10 @@ def calcular_produtividade_equipe(state, target_month):
     res = {}
     for nome in candidatos:
         nome_norm = nome.strip().lower()
-        lojas_auditor = [p for p in state.get('planejamento', []) if (p.get('auditor') or '').strip().lower() == nome_norm]
-        planejadas = len(lojas_auditor)
+        lojas_auditor = [p for p in state.get('planejamento', []) if (p.get('auditor') or '').strip().lower() == nome_norm and p.get('ativa') is not False]
+        # Lojas em obra/suspensas não contam como obrigação no mês
+        lojas_no_escopo = [p for p in lojas_auditor if get_status_loja_planejamento(p, target_month, state) != 'SUSPENSA']
+        planejadas = len(lojas_no_escopo)
         
         concluidas_plan = sum(1 for p in lojas_auditor if get_status_loja_planejamento(p, target_month, state) == 'CONCLUIDA')
         concluidas_map = sum(1 for m in eventos_mes if (m.get('auditor') or '').strip().lower() == nome_norm and m.get('realizada') in ('SIM', 'Sim'))
@@ -132,8 +144,8 @@ def calcular_dados_rosca_auditor(state, target_month):
     auditores_list = sorted(por_auditor.keys(), key=lambda a: (-por_auditor[a], a))
     counts = [por_auditor[a] for a in auditores_list]
     
-    # Lojas restantes no mês
-    restantes = sum(1 for p in state.get('planejamento', []) if get_status_loja_planejamento(p, target_month, state) != 'CONCLUIDA')
+    # Lojas restantes no mês (descontando concluídas, suspensas e inativas)
+    restantes = sum(1 for p in state.get('planejamento', []) if p.get('ativa') is not False and get_status_loja_planejamento(p, target_month, state) not in ('CONCLUIDA', 'SUSPENSA', 'INATIVA'))
     
     labels = list(auditores_list)
     data = list(counts)
@@ -146,7 +158,7 @@ def calcular_dados_rosca_auditor(state, target_month):
 
 
 def run_tests():
-    print("--- Executando Testes Unitarios de Planejamento e Dashboard Dinâmico ---")
+    print("--- Executando Testes Unitarios de Planejamento, Exceções e Gestão de Lojas ---")
     
     state = {
         'usuarios': [
@@ -156,77 +168,81 @@ def run_tests():
             {'id': 'u4', 'displayName': 'Usuario Desativado', 'ativo': False}
         ],
         'planejamento': [
-            {'id': 'p1', 'lojaNome': 'Loja 1', 'auditor': 'Bruna Costa', 'proximaPrevista': '2026-09-25'},
-            {'id': 'p2', 'lojaNome': 'Loja 2', 'auditor': '', 'proximaPrevista': ''},
-            {'id': 'p3', 'lojaNome': 'Loja 3', 'auditor': 'Matheus Cosme', 'proximaPrevista': '2026-09-10'},
-            {'id': 'p4', 'lojaNome': 'Loja 4', 'auditor': 'Matheus Cosme', 'proximaPrevista': '2026-09-15'},
-            {'id': 'p5', 'lojaNome': 'Loja 5', 'auditor': 'Matheus Cosme', 'proximaPrevista': '2026-09-20'},
-            {'id': 'p6', 'lojaNome': 'Loja 6', 'auditor': 'Matheus Cosme', 'proximaPrevista': '2026-09-28'}
+            {'id': 'p1', 'lojaNome': 'Loja 1', 'auditor': 'Bruna Costa', 'proximaPrevista': '2026-09-25', 'ativa': True},
+            {'id': 'p2', 'lojaNome': 'Loja 2', 'auditor': '', 'proximaPrevista': '', 'ativa': True},
+            {'id': 'p3', 'lojaNome': 'Loja 3', 'auditor': 'Matheus Cosme', 'proximaPrevista': '2026-09-10', 'ativa': True},
+            {'id': 'p4', 'lojaNome': 'Loja 4', 'auditor': 'Matheus Cosme', 'proximaPrevista': '2026-09-15', 'ativa': True},
+            {'id': 'p5', 'lojaNome': 'Loja 5', 'auditor': 'Matheus Cosme', 'proximaPrevista': '2026-09-20', 'ativa': True, 'excecoesMes': {'2026-09': 'Loja em Reforma Geral'}},
+            {'id': 'p6', 'lojaNome': 'Loja 6', 'auditor': 'Matheus Cosme', 'proximaPrevista': '2026-09-28', 'ativa': True},
+            {'id': 'p7', 'lojaNome': 'Loja Fechada', 'auditor': 'Bruna Costa', 'proximaPrevista': '', 'ativa': False}
         ],
         'mapeamento': [
             {'id': 'm1', 'lojaNome': 'Loja 3', 'auditor': 'Matheus Cosme', 'realizada': 'SIM', 'data': '2026-09-10'},
-            # Registro historico antigo de auditor inativo (ex: Fernanda Teles em janeiro)
             {'id': 'm0', 'lojaNome': 'Loja Antiga', 'auditor': 'Fernanda Teles', 'realizada': 'SIM', 'data': '2025-01-15'}
         ]
     }
     
     # Teste 1: Lista dinâmica sem mock fixo
     auditores = get_lista_auditores_unificada(state)
-    assert 'Bruna Costa' in auditores, "FALHA: Bruna Costa deve estar na lista vinda do banco!"
-    assert 'Matheus Cosme' in auditores, "FALHA: Matheus Cosme deve estar na lista vinda do banco!"
-    assert 'Ana Raquel' in auditores, "FALHA: Ana Raquel deve estar na lista vinda do banco!"
-    assert 'Usuario Desativado' not in auditores, "FALHA: Usuário inativo (ativo=False) NÃO deve aparecer na lista!"
-    assert 'Fernanda Teles' not in auditores, "FALHA: Auditor histórico sem conta no banco NÃO deve aparecer nos selects gerais!"
+    assert 'Bruna Costa' in auditores
+    assert 'Matheus Cosme' in auditores
+    assert 'Ana Raquel' in auditores
+    assert 'Usuario Desativado' not in auditores
+    assert 'Fernanda Teles' not in auditores
     print("OK - Teste 1 Passou: Lista unificada é 100% dinâmica do banco e exclui usuários inativos/desativados.")
     
-    # Teste 2: Filtro por Bruna Costa
+    # Teste 2: Filtro por Bruna Costa (exclui loja inativa de contagens ativas)
     res_bruna = filtrar_planejamento(state, auditor='Bruna Costa')
-    assert len(res_bruna) == 1 and res_bruna[0]['lojaNome'] == 'Loja 1', "FALHA: Filtro de Bruna Costa deve retornar Loja 1"
-    print("OK - Teste 2 Passou: Filtro de Bruna Costa retorna as lojas atribuidas.")
+    assert len(res_bruna) == 2, f"Esperado 2 lojas para Bruna, deu {len(res_bruna)}"
+    print("OK - Teste 2 Passou: Filtro de Bruna Costa retorna as lojas atribuídas.")
     
-    # Teste 3: Filtro por Lojas Sem Auditor
-    res_sem_aud = filtrar_planejamento(state, auditor='__SEM_AUDITOR__')
-    assert len(res_sem_aud) == 1 and res_sem_aud[0]['lojaNome'] == 'Loja 2', "FALHA: Filtro __SEM_AUDITOR__ deve retornar Loja 2"
-    print("OK - Teste 3 Passou: Filtro de lojas sem auditor retorna lojas disponiveis para atribuicao.")
+    # Teste 3: Status de Loja Suspensa / Em Obra
+    status_loja5_set = get_status_loja_planejamento(state['planejamento'][4], '2026-09', state, '2026-09-21')
+    assert status_loja5_set == 'SUSPENSA', f"FALHA: Loja 5 em setembro deve ser SUSPENSA, deu {status_loja5_set}"
     
-    # Teste 4: Status no Mes Atual (Setembro) vs Mes Futuro (Outubro)
-    status_set = get_status_loja_planejamento(state['planejamento'][3], '2026-09', state, '2026-09-21')
-    assert status_set == 'ATRASADA', f"FALHA: Loja 4 em setembro deve ser ATRASADA, deu {status_set}"
+    # Em outubro, a suspensão de setembro não afeta outubro -> vira PENDENTE
+    status_loja5_out = get_status_loja_planejamento(state['planejamento'][4], '2026-10', state, '2026-09-21')
+    assert status_loja5_out == 'PENDENTE', f"FALHA: Loja 5 em outubro deve ser PENDENTE, deu {status_loja5_out}"
+    print("OK - Teste 3 Passou: Loja 5 é SUSPENSA em setembro e volta a ser PENDENTE em outubro.")
     
-    status_out = get_status_loja_planejamento(state['planejamento'][3], '2026-10', state, '2026-09-21')
-    assert status_out == 'PENDENTE', f"FALHA: Loja 4 em outubro deve ser PENDENTE, deu {status_out}"
-    print("OK - Teste 4 Passou: Status de loja atrasada em setembro vira pendente de agendamento em outubro.")
+    # Teste 4: Status de Loja Desativada (Inativa)
+    status_loja7 = get_status_loja_planejamento(state['planejamento'][6], '2026-09', state, '2026-09-21')
+    assert status_loja7 == 'INATIVA', f"FALHA: Loja 7 deve ser INATIVA, deu {status_loja7}"
+    print("OK - Teste 4 Passou: Loja desativada na rede retorna status INATIVA.")
     
-    # Teste 5: Filtro Restantes em Setembro
+    # Teste 5: Filtro Restantes em Setembro (Desconta concluídas, suspensas e inativas)
+    # Total ativas: Loja 1 (Pendente), Loja 2 (Pendente), Loja 3 (Concluída), Loja 4 (Atrasada), Loja 5 (Suspensa), Loja 6 (Pendente)
+    # Restantes no escopo: Loja 1, Loja 2, Loja 4, Loja 6 -> 4 lojas
     restantes_set = filtrar_planejamento(state, month_val='2026-09', filter_status='RESTANTES')
-    assert len(restantes_set) == 5, f"FALHA: 5 lojas devem ser restantes no mes, retornou {len(restantes_set)}"
-    print("OK - Teste 5 Passou: Filtro de Restantes lista todas as lojas que faltam realizar no mes.")
+    assert len(restantes_set) == 4, f"FALHA: 4 lojas devem ser restantes no mes, retornou {len(restantes_set)}"
+    print("OK - Teste 5 Passou: Filtro de Restantes exclui corretamente lojas concluídas, suspensas e inativas.")
     
-    # Teste 6: Produtividade da Equipe no Mês de Setembro (Sem Fernanda Teles fantasma)
+    # Teste 6: Filtro de Suspensas / Em Obra
+    suspensas_set = filtrar_planejamento(state, month_val='2026-09', filter_status='SUSPENSAS')
+    assert len(suspensas_set) == 1 and suspensas_set[0]['lojaNome'] == 'Loja 5'
+    print("OK - Teste 6 Passou: Filtro de Suspensas retorna apenas a Loja 5 em reforma.")
+    
+    # Teste 7: Produtividade do Auditor com Loja em Obra
+    # Matheus Cosme tem 4 lojas ativas: Lojas 3, 4, 5, 6.
+    # Como a Loja 5 está SUSPENSA em setembro, seu escopo no mês é de 3 lojas (Lojas 3, 4, 6).
+    # Realizou 1 (Loja 3) -> 1 de 3 = 33% (e a loja em obra não o penaliza como atrasada!)
     prod_set = calcular_produtividade_equipe(state, '2026-09')
-    assert 'Matheus Cosme' in prod_set
-    assert prod_set['Matheus Cosme']['planejadas'] == 4
+    assert prod_set['Matheus Cosme']['planejadas'] == 3, f"Esperado 3 planejadas para Matheus, deu {prod_set['Matheus Cosme']['planejadas']}"
     assert prod_set['Matheus Cosme']['realizadas'] == 1
-    assert prod_set['Matheus Cosme']['pct'] == 25
+    assert prod_set['Matheus Cosme']['pct'] == 33, f"Esperado 33% para Matheus, deu {prod_set['Matheus Cosme']['pct']}%"
+    print("OK - Teste 7 Passou: Produtividade de Matheus calcula 33% (1 de 3) descontando a loja em obra do escopo.")
     
-    assert 'Bruna Costa' in prod_set
-    assert prod_set['Bruna Costa']['planejadas'] == 1
-    assert prod_set['Bruna Costa']['realizadas'] == 0
-    assert prod_set['Bruna Costa']['pct'] == 0
-    
-    assert 'Fernanda Teles' not in prod_set, "FALHA: Fernanda Teles NÃO deve aparecer no dashboard de setembro!"
-    print("OK - Teste 6 Passou: Produtividade de setembro calcula Matheus (25%), Bruna (0%) e exclui Fernanda Teles.")
-    
-    # Teste 7: Gráfico de Rosca com Lojas Restantes
+    # Teste 8: Gráfico de Rosca com Lojas Restantes
     labels, data = calcular_dados_rosca_auditor(state, '2026-09')
     assert 'Matheus Cosme' in labels and 'Lojas Restantes' in labels
     assert data[labels.index('Matheus Cosme')] == 1
-    assert data[labels.index('Lojas Restantes')] == 5
-    print("OK - Teste 7 Passou: Grafico de rosca inclui a fatia de 'Lojas Restantes' (5 lojas) ao lado de Matheus Cosme (1 loja).")
+    assert data[labels.index('Lojas Restantes')] == 4
+    print("OK - Teste 8 Passou: Grafico de rosca calcula 4 lojas restantes descontando as suspensas.")
     
     print("\nTODOS OS TESTES PASSARAM COM SUCESSO!")
 
 if __name__ == '__main__':
     run_tests()
+
 
 

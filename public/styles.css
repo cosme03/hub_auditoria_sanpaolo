@@ -294,6 +294,8 @@ select.form-ctrl { padding-left: 14px; }
 .status-badge.atrasada { background: rgba(218,13,23,0.12); color: var(--sp-red); }
 .status-badge.pendente { background: rgba(218,85,19,0.12); color: var(--sp-laranja); }
 .status-badge.andamento { background: rgba(38,93,124,0.12); color: var(--sp-ao-leite); }
+.status-badge.suspensa { background: rgba(86,51,27,0.12); color: var(--sp-cafe); }
+.status-badge.inativa { background: rgba(140,115,97,0.12); color: var(--text-muted); }
 
 /* ---- KANBAN 3 COLUNAS COLORIDAS ---- */
 .kanban-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }

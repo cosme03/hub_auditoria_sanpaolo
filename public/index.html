@@ -48,6 +48,9 @@
         <span class="user-name" id="display-user-name">Visitante</span>
       </div>
 
+      <button class="icon-btn hidden" id="btn-lojas-header" style="gap:6px;padding:0 14px;width:auto;font-size:0.78rem;font-weight:600;" onclick="openModalLojas()">
+        <i class="ph ph-storefront"></i> Lojas
+      </button>
       <button class="icon-btn hidden" id="btn-equipe-header" style="gap:6px;padding:0 14px;width:auto;font-size:0.78rem;font-weight:600;" onclick="openModalUsuarios()">
         <i class="ph ph-users"></i> Equipe
       </button>
@@ -253,6 +256,7 @@
           <button class="filter-pill-btn" id="btn-status-restantes" onclick="setFilterStatus('RESTANTES')">Restantes</button>
           <button class="filter-pill-btn" id="btn-status-atrasadas" onclick="setFilterStatus('ATRASADAS')">Atrasadas</button>
           <button class="filter-pill-btn" id="btn-status-pendentetotal" onclick="setFilterStatus('PENDENTE_TOTAL')">Pendência Total</button>
+          <button class="filter-pill-btn" id="btn-status-suspensas" onclick="setFilterStatus('SUSPENSAS')">Em Obra</button>
           <button class="filter-pill-btn" id="btn-filtro-criticas" onclick="toggleFiltroCriticasPlanejamento()" title="Exibir apenas lojas com 2 ou mais tentativas sem sucesso"><i class="ph ph-warning"></i> 2+ Tentativas (Críticas)</button>
         </div>
       </div>
@@ -479,6 +483,7 @@
           <button class="filter-pill-btn active" id="dash-btn-todos" onclick="setDashFilterStatus('TODOS')">Todos</button>
           <button class="filter-pill-btn" id="dash-btn-resolvido" onclick="setDashFilterStatus('RESOLVIDO')">Resolvido</button>
           <button class="filter-pill-btn" id="dash-btn-pendente" onclick="setDashFilterStatus('PENDENTE')">Pendente</button>
+          <button class="filter-pill-btn" id="dash-btn-suspensas" onclick="setDashFilterStatus('SUSPENSA')">Em Obra</button>
         </div>
       </div>
 
@@ -738,6 +743,34 @@
     </div>
     <div style="margin-top:16px;text-align:right;">
       <button class="btn-cream-cancel" onclick="closeModalUsuarios()">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: GESTÃO DE LOJAS -->
+<div id="modal-lojas" class="modal-overlay hidden">
+  <div class="modal-demand-box" style="max-width:640px;">
+    <h3 class="modal-demand-title"><i class="ph ph-storefront"></i> Gerenciar Lojas da Rede</h3>
+    <div style="display:grid;grid-template-columns:2fr 1.2fr 0.8fr 1.5fr;gap:10px;margin-bottom:10px;">
+      <input type="text" id="nova-loja-nome" class="form-ctrl" placeholder="Nome da Loja (ex: SPCE - IGUATEMI)" />
+      <select id="nova-loja-regional" class="form-ctrl"></select>
+      <input type="text" id="nova-loja-uf" class="form-ctrl" placeholder="UF" maxlength="2" style="text-transform:uppercase;" />
+      <select id="nova-loja-auditor" class="form-ctrl"></select>
+    </div>
+    <div style="margin-bottom:16px; text-align:right;">
+      <button class="btn-red-submit" style="width:auto; padding:8px 18px; font-size:0.82rem;" onclick="adicionarNovaLoja()">
+        <i class="ph ph-plus"></i> Cadastrar Loja
+      </button>
+    </div>
+    <div style="border-top:1px solid var(--border-color);padding-top:14px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <p style="font-weight:700;font-size:0.85rem;margin:0;">Lojas Cadastradas no Sistema:</p>
+        <input type="text" id="busca-gestao-lojas" class="form-ctrl" placeholder="🔍 Buscar loja..." style="width:180px; padding:6px 10px; font-size:0.78rem;" oninput="renderGestaoLojasLista()" />
+      </div>
+      <div id="gestao-lojas-lista" style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow-y:auto;"></div>
+    </div>
+    <div style="margin-top:16px;text-align:right;">
+      <button class="btn-cream-cancel" onclick="closeModalLojas()">Fechar</button>
     </div>
   </div>
 </div>

@@ -8776,15 +8776,10 @@ function getDashFilteredPlanejamento() {
   const regional = document.getElementById('dash-filter-regional')?.value || '';
   const loja = document.getElementById('dash-filter-loja')?.value || '';
 
-  return state.planejamento.filter(item => {
-    // Mesma regra de periodo de renderPlanejamentoTable: prevista OU realizada.
-    // Se as duas telas divergirem aqui, o Dashboard conta um numero de lojas
-    // que o Planejamento nao consegue listar.
+  return (state.planejamento || []).filter(item => {
+    // No modo mensal do Dashboard, todas as lojas da rede pertencem ao universo avaliado.
+    // O status (CONCLUIDA, ATRASADA, PENDENTE) é calculado dinamicamente por getStatusLojaPlanejamento(item, monthVal).
     let matchMonth = true;
-    if (monthVal) {
-      matchMonth = Boolean((item.proximaPrevista && item.proximaPrevista.startsWith(monthVal))
-                        || (item.ultimaData && item.ultimaData.startsWith(monthVal)));
-    }
 
     const matchReg = !regional || item.regional === regional;
     const matchLoja = !loja || item.lojaNome === loja;
@@ -8824,42 +8819,55 @@ function renderProdutividadeEquipe() {
   const container = document.getElementById('produtividade-members-list');
   if (!container) return;
 
-  // A metrica e AUDITORIA REALIZADA, nao cobertura de carteira.
-  //
-  // Antes o card contava linhas do Planejamento atribuidas a pessoa. Quem
-  // realizava uma auditoria numa loja sem responsavel - ou de outro auditor -
-  // simplesmente nao era contabilizado, e quem nao tinha carteira no mes nem
-  // aparecia. Contando do Mapeamento, o card passa a refletir trabalho feito:
-  // quem executou recebe o credito, independente de a quem a loja pertence.
-  //
-  // O percentual e a PARTICIPACAO no total realizado no mes. Nao ha meta
-  // cadastrada em lugar nenhum do sistema, entao qualquer outro denominador
-  // seria inventado.
-  const eventos = getDashFilteredMapeamento();
+  const monthVal = document.getElementById('dash-filter-month')?.value || new Date().toISOString().slice(0, 7);
+
+  // Lista unificada de auditores da equipe
+  const auditores = getListaAuditoresUnificada();
+
+  // Mapeamento de auditorias realizadas e tentativas por auditor no mês
+  const eventosMes = (state.mapeamento || []).filter(m => (m.data || '').startsWith(monthVal));
 
   const porAuditor = {};
-  eventos.forEach(m => {
-    const nome = m.auditor || 'Sem auditor';
-    if (!porAuditor[nome]) porAuditor[nome] = { realizadas: 0, tentativas: 0 };
-    if (m.realizada === 'SIM' || m.realizada === 'Sim') porAuditor[nome].realizadas++;
-    else porAuditor[nome].tentativas++;
+  auditores.forEach(nome => {
+    const nomeNorm = nome.trim().toLowerCase();
+    const lojasDoAuditor = (state.planejamento || []).filter(p => (p.auditor || '').trim().toLowerCase() === nomeNorm);
+    const planejadas = lojasDoAuditor.length;
+
+    // Lojas concluídas pelo auditor no mês
+    const concluidasPlan = lojasDoAuditor.filter(p => getStatusLojaPlanejamento(p, monthVal) === 'CONCLUIDA').length;
+    const concluidasMap = eventosMes.filter(m => (m.auditor || '').trim().toLowerCase() === nomeNorm && (m.realizada === 'SIM' || m.realizada === 'Sim')).length;
+    const realizadas = Math.max(concluidasPlan, concluidasMap);
+
+    const tentativas = eventosMes.filter(m => (m.auditor || '').trim().toLowerCase() === nomeNorm && (m.realizada === 'NÃO' || m.realizada === 'NAO')).length;
+
+    let pct = 0;
+    if (planejadas > 0) {
+      pct = Math.min(100, Math.round((realizadas / planejadas) * 100));
+    } else if (realizadas > 0) {
+      pct = 100;
+    }
+
+    porAuditor[nome] = { planejadas, realizadas, tentativas, pct };
   });
 
-  const nomes = Object.keys(porAuditor).sort((a, b) =>
-    (porAuditor[b].realizadas - porAuditor[a].realizadas) || a.localeCompare(b));
+  // Ordenação: mais realizadas primeiro, depois maior percentual, depois alfabético
+  const nomes = Object.keys(porAuditor).sort((a, b) => {
+    return (porAuditor[b].realizadas - porAuditor[a].realizadas)
+        || (porAuditor[b].pct - porAuditor[a].pct)
+        || a.localeCompare(b, 'pt-BR');
+  });
 
   if (nomes.length === 0) {
-    container.innerHTML = '<p style="font-size:0.8rem; color:var(--text-muted);">' +
-      'Nenhuma auditoria registrada no período selecionado.</p>';
+    container.innerHTML = '<p style="font-size:0.8rem; color:var(--text-muted);">Nenhum auditor encontrado na equipe.</p>';
     return;
   }
 
-  const totalMes = nomes.reduce((s, n) => s + porAuditor[n].realizadas, 0);
-
   container.innerHTML = nomes.map(nome => {
     const d = porAuditor[nome];
-    const pct = totalMes > 0 ? Math.round((d.realizadas / totalMes) * 100) : 0;
     const plural = d.realizadas === 1 ? 'auditoria realizada' : 'auditorias realizadas';
+    const subDesc = d.planejadas > 0
+      ? `${d.realizadas} de ${d.planejadas} ${plural}`
+      : `${d.realizadas} ${plural}`;
     const semSucesso = d.tentativas > 0
       ? ` · ${d.tentativas} ${d.tentativas === 1 ? 'tentativa sem sucesso' : 'tentativas sem sucesso'}`
       : '';
@@ -8868,18 +8876,17 @@ function renderProdutividadeEquipe() {
       <div class="prod-member-item">
         <div class="prod-member-name">
           <span>${window.escapeHtml ? window.escapeHtml(nome) : nome}</span>
-          <span style="color:var(--sp-pistache); font-weight:800;">${pct}%</span>
+          <span style="color:var(--sp-pistache); font-weight:800;">${d.pct}%</span>
         </div>
         <div style="font-size:0.75rem; color:var(--text-muted);">
-          ${d.realizadas} ${plural}${semSucesso}
+          ${subDesc}${semSucesso}
         </div>
         <div class="produtividade-bar-bg">
-          <div class="produtividade-bar-fill" style="width: ${pct}%;"></div>
+          <div class="produtividade-bar-fill" style="width: ${d.pct}%;"></div>
         </div>
       </div>
     `;
   }).join('');
-
 }
 
 function renderDashboardCharts() {
@@ -8974,11 +8981,8 @@ function renderChartAuditorRoscaDinamico(filtrados) {
   if (!ctx || typeof Chart === 'undefined') return;
   if (state.charts && state.charts.auditorRosca) state.charts.auditorRosca.destroy();
 
-  // Mesma metrica dos cards: auditorias REALIZADAS no periodo, do Mapeamento.
-  //
-  // Antes a rosca contava lojas atribuidas no Planejamento. Como metade das
-  // lojas nao tem responsavel, o grafico sugeria que a operacao inteira estava
-  // dividida entre duas pessoas - e contradizia os cards ao lado.
+  const monthVal = document.getElementById('dash-filter-month')?.value || new Date().toISOString().slice(0, 7);
+
   const eventos = getDashFilteredMapeamento()
     .filter(m => m.realizada === 'SIM' || m.realizada === 'Sim');
 
@@ -8989,17 +8993,38 @@ function renderChartAuditorRoscaDinamico(filtrados) {
   });
 
   const auditoresList = Object.keys(porAuditor)
-    .sort((a, b) => (porAuditor[b] - porAuditor[a]) || a.localeCompare(b));
+    .sort((a, b) => (porAuditor[b] - porAuditor[a]) || a.localeCompare(b, 'pt-BR'));
   const counts = auditoresList.map(aud => porAuditor[aud]);
+
+  // Contagem de lojas restantes / pendentes no filtro selecionado do mês
+  const restantesCount = (filtrados || []).filter(p => getStatusLojaPlanejamento(p, monthVal) !== 'CONCLUIDA').length;
+
+  const chartLabels = [...auditoresList];
+  const chartData = [...counts];
+
+  const paletteAuditores = ['#265D7C', '#4F7043', '#56331B', '#8C7361', '#331F10', '#7E8B92'];
+  const bgColors = auditoresList.map((_, idx) => paletteAuditores[idx % paletteAuditores.length]);
+
+  if (restantesCount > 0) {
+    chartLabels.push('Lojas Restantes');
+    chartData.push(restantesCount);
+    bgColors.push('#DA5513');
+  }
+
+  if (chartData.length === 0 || chartData.every(v => v === 0)) {
+    chartLabels.push('Nenhuma loja no filtro');
+    chartData.push(1);
+    bgColors.push('#E2D7C5');
+  }
 
   if (!state.charts) state.charts = {};
   state.charts.auditorRosca = new Chart(ctx, {
     type: 'doughnut',
     data: {
-      labels: auditoresList,
+      labels: chartLabels,
       datasets: [{
-        data: counts,
-        backgroundColor: ['#DA0D17', '#265D7C', '#4F7043', '#DA5513', '#56331B']
+        data: chartData,
+        backgroundColor: bgColors
       }]
     },
     options: {
